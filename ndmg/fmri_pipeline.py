@@ -23,10 +23,10 @@ from argparse import ArgumentParser
 from datetime import datetime
 from subprocess import Popen, PIPE
 import os.path as op
-import ndmg.utils as mgu
-import ndmg.register as mgr
-import ndmg.track as mgt
-import ndmg.graph as mgg
+import utils.utils as mgu
+from register.register import register as mgr
+import track.track as mgt
+import graph.graph as mgg
 import ndmg.preproc as mgp
 import numpy as np
 import nibabel as nb
@@ -42,8 +42,9 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
 
     # Create derivative output directories
     fmri_name = op.splitext(op.splitext(op.basename(fmri))[0])[0]
-    cmd = "mkdir -p " + outdir + "/reg_fmri " + outdir + "/tensors " +\
-          outdir + "/fibers " + outdir + "/graphs"
+    cmd = "mkdir -p " + outdir + "/reg_fmri " + outdir +\
+        "/voxel_timeseries " + outdir + "/roi_timeseries " +\
+        outdir + "/graphs"
     p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
     p.communicate()
 
@@ -52,6 +53,8 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
         label_name = [op.splitext(op.splitext(op.basename(x))[0])[0]
                       for x in labels]
         for label in label_name:
+            p = Popen("mkdir -p " + outdir + "/roi_timeseries/" + label,
+                      stdout=PIPE, stderr=PIPE, shell=True)
             p = Popen("mkdir -p " + outdir + "/graphs/" + label,
                       stdout=PIPE, stderr=PIPE, shell=True)
     else:
@@ -61,11 +64,11 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
 
     # Create derivative output file names
     aligned_fmri = outdir + "/reg_fmri/" + fmri_name + "_aligned.nii.gz"
-    voxel_ts = outdir + "/tensors/" + fmri_name + "_voxel.npz"
+    voxel_ts = outdir + "/voxel_timeseries/" + fmri_name + "_voxel.npz"
 
     print "This pipeline will produce the following derivatives..."
     print "fMRI volume registered to atlas: " + aligned_fmri
-    print "Voxel timecourse in atlas space: " + tensors
+    print "Voxel timecourse in atlas space: " + voxel_ts
 
     # Again, graphs are different
     graphs = [outdir + "/graphs/" + x + '/' + fmri_name + "_" + x + '.' + fmt
@@ -73,36 +76,9 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
     print "Graphs of streamlines downsampled to given labels: " +\
           (", ".join([x for x in graphs]))
 
-    # Align DTI volumes to Atlas
+    # Align fMRI volumes to Atlas
     print "Aligning volumes..."
     mgr().mri2atlas(fmri, mprage, atlas, aligned_fmri, outdir, 'f')
-
-    print "Beginning tractography..."
-    # Compute tensors and track fiber streamlines
-    tens, tracks = mgt().eudx_basic(aligned_fmri, mask, gtab, stop_val=0.2)
-
-    # And save them to disk
-    np.savez(tensors, tens)
-    np.savez(fibers, tracks)
-
-    # Generate graphs from streamlines for each parcellation
-    for idx, label in enumerate(label_name):
-        print "Generating graph for " + label + " parcellation..."
-        labels_im = nb.load(labels[idx])
-        g1 = mgg(len(np.unique(labels_im.get_data()))-1, labels[idx])
-        g1.make_graph(tracks)
-        g1.summary()
-        g1.save_graph(graphs[idx], fmt=fmt)
-
-    print "Execution took: " + str(datetime.now() - startTime)
-
-    # Clean temp files
-    if clean:
-        print "Cleaning up intermediate files... "
-        cmd = 'rm -f ' + tensors + ' ' + fmri1 + ' ' + aligned_fmri + ' ' +\
-              bvecs1
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
 
     print "Complete!"
     pass
@@ -133,7 +109,7 @@ def main():
     p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
     p.communicate()
 
-    ndmg_pipeline(result.fmri, result.mprage, result.atlas, result.mask,
+    fmri_pipeline(result.fmri, result.mprage, result.atlas, result.mask,
                   result.labels, result.outdir, result.clean, result.fmt)
 
 

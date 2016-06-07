@@ -99,8 +99,8 @@ class register(object):
                     - 'd': for DTI
         """
         if (opt == 'f'):
-            cmd = "mcflirt -in " + mri + " -out " + corrected_mri +
-            " -plots -refvol " + str(idx)
+            cmd = "mcflirt -in " + mri + " -out " + corrected_mri +\
+                " -plots -refvol " + str(idx)
             print "Executing: " + cmd
             p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
             p.communicate()
@@ -137,7 +137,7 @@ class register(object):
         pass
 
     def mri2atlas(self, mri, mprage, atlas, aligned_mri, outdir, opt,
-                  gtab, bvals, bvecs):
+                  **kwargs):
         """
         Aligns two images and stores the transform between them
 
@@ -155,13 +155,11 @@ class register(object):
                     -'f' for fMRI
                     -'d' for DTI
                 outdir: the base output directory to place files
-                gtab:
-                    - the gradient table
-                bvals:
-                    - File containing list of bvalues for each scan
-                bvecs:
-                    - File containing gradient directions for each scan
-        """
+                **kwargs:
+                    -'gtab=tab' the gradient table
+                    -'bvals=bval' the bvals
+                    -'bvecs=bvec' the bvecs
+       """
         # Creates names for all intermediate files used
         # GK TODO: come up with smarter way to create these temp file names
         mri_name = op.splitext(op.splitext(op.basename(mri))[0])[0]
@@ -177,12 +175,16 @@ class register(object):
             self.align_slices(mri, mri1, 0, 'f')
 
         else:
+            gtab = kwargs['gtab']
+            bvals = kwargs['bvals']
+            bvecs = kwargs['bvecs']
+
             mri2 = outdir + "/tmp/" + mri_name + "_t2.nii.gz"
             temp_aligned = outdir + "/tmp/" + mri_name + "_ta.nii.gz"
             b0 = outdir + "/tmp/" + mri_name + "_b0.nii.gz"
             xfm1 = outdir + "/tmp/" + mri_name + "_" + mprage_name + "_xfm.mat"
-            xfm2 = outdir + "/tmp/" + mprage_name + "_" + atlas_name +
-            "_xfm.mat"
+            xfm2 = outdir + "/tmp/" + mprage_name + "_" + atlas_name +\
+                "_xfm.mat"
             xfm3 = outdir + "/tmp/" + mri_name + "_" + atlas_name + "_xfm.mat"
 
             # Align DTI volumes to each other
