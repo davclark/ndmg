@@ -17,7 +17,7 @@
 
 # register.py
 # Created by Greg Kiar on 2016-01-28.
-# Email: gkiar@jhu.edu
+# Email: gkiar@jhu.edu, ebridge2@jhu.edu
 
 from subprocess import Popen, PIPE
 import os.path as op
@@ -94,13 +94,13 @@ class register(object):
                 idx:
                     - Index of the volume to align to in the stack. for DTI,
                       this corresponds to the B0 volume.
-                opt: 
+                opt:
                     - 'f': for fMRI
                     - 'd': for DTI
         """
         if (opt == 'f'):
             cmd = "mcflirt -in " + mri + " -out " + corrected_mri +
-                " -plots -refvol " + str(idx)
+            " -plots -refvol " + str(idx)
             print "Executing: " + cmd
             p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
             p.communicate()
@@ -136,7 +136,8 @@ class register(object):
         nb.save(target_im, ingested)
         pass
 
-    def mri2atlas(self, mri, gtab, mprage, atlas, aligned_mri, outdir):
+    def mri2atlas(self, mri, mprage, atlas, aligned_mri, outdir, opt,
+                  gtab, bvals, bvecs):
         """
         Aligns two images and stores the transform between them
 
@@ -144,16 +145,22 @@ class register(object):
 
                 mri:
                     - Input impage to be aligned as a nifti image file
-                bvals:
-                    - File containing list of bvalues for each scan
-                bvecs:
-                    - File containing gradient directions for each scan
                 mprage:
                     - Intermediate image being aligned to as a nifti image file
                 atlas:
                     - Terminal image being aligned to as a nifti image file
                 aligned_mri:
                     - Aligned output mri image as a nifti image file
+                opt:
+                    -'f' for fMRI
+                    -'d' for DTI
+                outdir: the base output directory to place files
+                gtab:
+                    - the gradient table
+                bvals:
+                    - File containing list of bvalues for each scan
+                bvecs:
+                    - File containing gradient directions for each scan
         """
         # Creates names for all intermediate files used
         # GK TODO: come up with smarter way to create these temp file names
@@ -161,46 +168,56 @@ class register(object):
         mprage_name = op.splitext(op.splitext(op.basename(mprage))[0])[0]
         atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
 
-        mri2 = outdir + "/tmp/" + mri_name + "_t2.nii.gz"
-        temp_aligned = outdir + "/tmp/" + mri_name + "_ta.nii.gz"
-        b0 = outdir + "/tmp/" + mri_name + "_b0.nii.gz"
-        xfm1 = outdir + "/tmp/" + mri_name + "_" + mprage_name + "_xfm.mat"
-        xfm2 = outdir + "/tmp/" + mprage_name + "_" + atlas_name + "_xfm.mat"
-        xfm3 = outdir + "/tmp/" + mri_name + "_" + atlas_name + "_xfm.mat"
+        if (opt == 'f'):
+            mri1 = outdir + "/tmp/" + mri_name + "_t2.nii.gz"
 
-        # Align DTI volumes to each other
-        self.align_slices(mri, mri2, np.where(gtab.b0s_mask)[0])
+            # align the fMRI volumes to the 0th volume in each stack
+            # EB TODO: figure out whether we want to align to the 0th vol
+            # or the mean vol in each stack
+            self.align_slices(mri, mri1, 0, 'f')
 
-        # Loads DTI image in as data and extracts B0 volume
-        import ndmg.utils as mgu
-        mri_im = nb.load(mri2)
-        b0_im = mgu().get_b0(gtab, mri_im.get_data())
-        # GK TODO: why doesn't top import work?
+        else:
+            mri2 = outdir + "/tmp/" + mri_name + "_t2.nii.gz"
+            temp_aligned = outdir + "/tmp/" + mri_name + "_ta.nii.gz"
+            b0 = outdir + "/tmp/" + mri_name + "_b0.nii.gz"
+            xfm1 = outdir + "/tmp/" + mri_name + "_" + mprage_name + "_xfm.mat"
+            xfm2 = outdir + "/tmp/" + mprage_name + "_" + atlas_name +
+            "_xfm.mat"
+            xfm3 = outdir + "/tmp/" + mri_name + "_" + atlas_name + "_xfm.mat"
 
-        # Wraps B0 volume in new nifti image
-        b0_head = mri_im.get_header()
-        b0_head.set_data_shape(b0_head.get_data_shape()[0:3])
-        b0_out = nb.Nifti1Image(b0_im, affine=mri_im.get_affine(),
-                                header=b0_head)
-        b0_out.update_header()
-        nb.save(b0_out, b0)
+            # Align DTI volumes to each other
+            self.align_slices(mri, mri2, np.where(gtab.b0s_mask)[0], 'd')
 
-        # Algins B0 volume to MPRAGE, and MPRAGE to Atlas
-        self.align(b0, mprage, xfm1)
-        self.align(mprage, atlas, xfm2)
+            # Loads DTI image in as data and extracts B0 volume
+            import ndmg.utils as mgu
+            mri_im = nb.load(mri2)
+            b0_im = mgu().get_b0(gtab, mri_im.get_data())
+            # GK TODO: why doesn't top import work?
 
-        # Combines transforms from previous registrations in proper order
-        cmd = "convert_xfm -omat " + xfm3 + " -concat " + xfm2 + " " + xfm1
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+            # Wraps B0 volume in new nifti image
+            b0_head = mri_im.get_header()
+            b0_head.set_data_shape(b0_head.get_data_shape()[0:3])
+            b0_out = nb.Nifti1Image(b0_im, affine=mri_im.get_affine(),
+                                    header=b0_head)
+            b0_out.update_header()
+            nb.save(b0_out, b0)
 
-        # Applies combined transform to mri image volume
-        self.applyxfm(mri2, atlas, xfm3, temp_aligned)
-        self.resample(temp_aligned, aligned_mri, atlas)
+            # Algins B0 volume to MPRAGE, and MPRAGE to Atlas
+            self.align(b0, mprage, xfm1)
+            self.align(mprage, atlas, xfm2)
 
-        # Clean temp files
-        cmd = "rm -f " + mri2 + " " + temp_aligned + " " + b0 + " " +\
-              xfm1 + " " + xfm2 + " " + xfm3
-        print "Cleaning temporary registration files..."
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+            # Combines transforms from previous registrations in proper order
+            cmd = "convert_xfm -omat " + xfm3 + " -concat " + xfm2 + " " + xfm1
+            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+            p.communicate()
+
+            # Applies combined transform to mri image volume
+            self.applyxfm(mri2, atlas, xfm3, temp_aligned)
+            self.resample(temp_aligned, aligned_mri, atlas)
+
+            # Clean temp files
+            cmd = "rm -f " + mri2 + " " + temp_aligned + " " + b0 + " " +\
+                  xfm1 + " " + xfm2 + " " + xfm3
+            print "Cleaning temporary registration files..."
+            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+            p.communicate()
