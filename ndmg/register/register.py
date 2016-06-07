@@ -34,7 +34,7 @@ class register(object):
         Enables registration of single images to one another as well as volumes
         within multi-volume image stacks. Has options to compute transforms,
         apply transforms, as well as a built-in method for aligning low
-        resolution dti images to a high resolution atlas.
+        resolution mri images to a high resolution atlas.
         """
         pass
 
@@ -82,22 +82,33 @@ class register(object):
         p.communicate()
         pass
 
-    def align_slices(self, dti, corrected_dti, idx):
+    def align_slices(self, mri, corrected_mri, idx, opt):
         """
         Performs eddy-correction (or self-alignment) of a stack of 3D images
 
         **Positional Arguments:**
-                dti:
+                mri:
                     - 4D (DTI) image volume as a nifti file
-                corrected_dti:
+                corrected_mri:
                     - Corrected and aligned DTI volume in a nifti file
                 idx:
-                    - Index of the first B0 volume in the stack
+                    - Index of the volume to align to in the stack. for DTI,
+                      this corresponds to the B0 volume.
+                opt: 
+                    - 'f': for fMRI
+                    - 'd': for DTI
         """
-        cmd = "eddy_correct " + dti + " " + corrected_dti + " " + str(idx)
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        if (opt == 'f'):
+            cmd = "mcflirt -in " + mri + " -out " + corrected_mri +
+                " -plots -refvol " + str(idx)
+            print "Executing: " + cmd
+            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+            p.communicate()
+        else:
+            cmd = "eddy_correct " + mri + " " + corrected_mri + " " + str(idx)
+            print "Executing: " + cmd
+            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+            p.communicate()
         pass
 
     def resample(self, base, ingested, template):
@@ -125,13 +136,13 @@ class register(object):
         nb.save(target_im, ingested)
         pass
 
-    def dti2atlas(self, dti, gtab, mprage, atlas, aligned_dti, outdir):
+    def mri2atlas(self, mri, gtab, mprage, atlas, aligned_mri, outdir):
         """
         Aligns two images and stores the transform between them
 
         **Positional Arguments:**
 
-                dti:
+                mri:
                     - Input impage to be aligned as a nifti image file
                 bvals:
                     - File containing list of bvalues for each scan
@@ -141,35 +152,35 @@ class register(object):
                     - Intermediate image being aligned to as a nifti image file
                 atlas:
                     - Terminal image being aligned to as a nifti image file
-                aligned_dti:
-                    - Aligned output dti image as a nifti image file
+                aligned_mri:
+                    - Aligned output mri image as a nifti image file
         """
         # Creates names for all intermediate files used
         # GK TODO: come up with smarter way to create these temp file names
-        dti_name = op.splitext(op.splitext(op.basename(dti))[0])[0]
+        mri_name = op.splitext(op.splitext(op.basename(mri))[0])[0]
         mprage_name = op.splitext(op.splitext(op.basename(mprage))[0])[0]
         atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
 
-        dti2 = outdir + "/tmp/" + dti_name + "_t2.nii.gz"
-        temp_aligned = outdir + "/tmp/" + dti_name + "_ta.nii.gz"
-        b0 = outdir + "/tmp/" + dti_name + "_b0.nii.gz"
-        xfm1 = outdir + "/tmp/" + dti_name + "_" + mprage_name + "_xfm.mat"
+        mri2 = outdir + "/tmp/" + mri_name + "_t2.nii.gz"
+        temp_aligned = outdir + "/tmp/" + mri_name + "_ta.nii.gz"
+        b0 = outdir + "/tmp/" + mri_name + "_b0.nii.gz"
+        xfm1 = outdir + "/tmp/" + mri_name + "_" + mprage_name + "_xfm.mat"
         xfm2 = outdir + "/tmp/" + mprage_name + "_" + atlas_name + "_xfm.mat"
-        xfm3 = outdir + "/tmp/" + dti_name + "_" + atlas_name + "_xfm.mat"
+        xfm3 = outdir + "/tmp/" + mri_name + "_" + atlas_name + "_xfm.mat"
 
         # Align DTI volumes to each other
-        self.align_slices(dti, dti2, np.where(gtab.b0s_mask)[0])
+        self.align_slices(mri, mri2, np.where(gtab.b0s_mask)[0])
 
         # Loads DTI image in as data and extracts B0 volume
         import ndmg.utils as mgu
-        dti_im = nb.load(dti2)
-        b0_im = mgu().get_b0(gtab, dti_im.get_data())
+        mri_im = nb.load(mri2)
+        b0_im = mgu().get_b0(gtab, mri_im.get_data())
         # GK TODO: why doesn't top import work?
 
         # Wraps B0 volume in new nifti image
-        b0_head = dti_im.get_header()
+        b0_head = mri_im.get_header()
         b0_head.set_data_shape(b0_head.get_data_shape()[0:3])
-        b0_out = nb.Nifti1Image(b0_im, affine=dti_im.get_affine(),
+        b0_out = nb.Nifti1Image(b0_im, affine=mri_im.get_affine(),
                                 header=b0_head)
         b0_out.update_header()
         nb.save(b0_out, b0)
@@ -183,12 +194,12 @@ class register(object):
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
 
-        # Applies combined transform to dti image volume
-        self.applyxfm(dti2, atlas, xfm3, temp_aligned)
-        self.resample(temp_aligned, aligned_dti, atlas)
+        # Applies combined transform to mri image volume
+        self.applyxfm(mri2, atlas, xfm3, temp_aligned)
+        self.resample(temp_aligned, aligned_mri, atlas)
 
         # Clean temp files
-        cmd = "rm -f " + dti2 + " " + temp_aligned + " " + b0 + " " +\
+        cmd = "rm -f " + mri2 + " " + temp_aligned + " " + b0 + " " +\
               xfm1 + " " + xfm2 + " " + xfm3
         print "Cleaning temporary registration files..."
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
