@@ -167,7 +167,7 @@ class register(object):
         atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
 
         if (opt == 'f'):
-            mri1 = outdir + "/tmp/" + mri_name + "_t2.nii.gz"
+            mri1 = outdir + "/tmp/" + mri_name + "_mc.nii.gz"
 
             # align the fMRI volumes to the 0th volume in each stack
             # EB TODO: figure out whether we want to align to the 0th vol
