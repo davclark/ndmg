@@ -137,6 +137,21 @@ class register(object):
         nb.save(target_im, ingested)
         pass
 
+    def combine_xfms(xfm1, xfm2, xfmout):
+        """
+        A function to combine two transformations, and output the
+        resulting transformation.
+
+        **Positional Arguments**
+            - xfm1: the path to the first transformation
+            - xfm2: the path to the second transformation
+            -xfmout: the path to the output transformation
+        """
+        cmd = "convert_xfm -omat " + xfmout + " -concat " + xfm1 + " " + xfm2
+        print "Executing: " + cmd
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
+
     def mri2atlas(self, mri, mprage, atlas, aligned_mri, outdir, opt,
                   **kwargs):
         """
@@ -170,6 +185,10 @@ class register(object):
         if (opt == 'f'):
             mri_mc1 = outdir + "/tmp/" + mri_name + "_mc.nii.gz"
             s0_name = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
+            xfm_0tompr = outdir + "/tmp/" + mri_name + "_xfm_0tompr.mat"
+            xfm_mprtotemp = outdir + "/tmp/" + mri_name + "_xfm_mprtotem.mat"
+            xfm_comb = outdir + "/tmp/" + mri_name + "_xfm_comb.mat"
+            mri_tempreg = outdir + "/tmp/" + mri_name + "_reg.nii.gz"
 
             # align the fMRI volumes to the 0th volume in each stack
             # EB TODO: figure out whether we want to align to the 0th vol
@@ -181,15 +200,22 @@ class register(object):
             sys.path.insert(0, '..')  # TODO: remove this before releasing
 
             import utils.utils as mgu
-            s0 = mgu().get_slice(mri_mc.get_data(), 0)  # get the 0th slice
+            s0_im = mgu().get_slice(mri_mc.get_data(), 0)  # get the 0th slice
 
             # Wraps B0 volume in new nifti image
             s0_head = mri_mc.get_header()
             s0_head.set_data_shape(s0_head.get_data_shape()[0:3])
-            s0_out = nb.Nifti1Image(s0, affine=mri_mc.get_affine(),
+            s0_out = nb.Nifti1Image(s0_im, affine=mri_mc.get_affine(),
                                     header=s0_head)
             s0_out.update_header()
             nb.save(s0_out, s0_name)
+
+            self.align(s0_name, mprage, xfm_0tompr)
+            self.align(mprage, atlas, xfmmprtotemp)
+            self.combine_xfms(xfm_mprtotemp, xfm_0tompr, xfm_comb)
+
+            self.applyxfm(mri_mc, atlas, xfm_comb, mri_tempreg)
+            self.resample(mri_tempreg, aligned_mri, atlas)
 
         else:
             gtab = kwargs['gtab']
@@ -226,9 +252,7 @@ class register(object):
             self.align(mprage, atlas, xfm2)
 
             # Combines transforms from previous registrations in proper order
-            cmd = "convert_xfm -omat " + xfm3 + " -concat " + xfm2 + " " + xfm1
-            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-            p.communicate()
+            self.combine_xfms(xfm2, xfm1, xfm3)
 
             # Applies combined transform to mri image volume
             self.applyxfm(mri2, atlas, xfm3, temp_aligned)
