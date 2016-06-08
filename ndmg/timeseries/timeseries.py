@@ -94,5 +94,5 @@ class timeseries():
 
             roi_ts[roi_idx, :] = np.mean(roi_voxelwisets, axis=0)
 
-        np.savez(rots_file, roi_ts)
+        np.savez(roits_file, roi_ts)
         pass
