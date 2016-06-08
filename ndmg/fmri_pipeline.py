@@ -88,7 +88,7 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
     mgts().voxel_timeseries(aligned_fmri, mask, voxel_ts)
     for idx, label in enumerate(label_name):
         print "Extracting roi timeseries for " + label + " parcellation..."
-        mgts().roi_timeseries(aligned_fmri, label, roi_ts[idx])
+        mgts().roi_timeseries(aligned_fmri, labels[idx], roi_ts[idx])
 
     print "Complete!"
     pass
