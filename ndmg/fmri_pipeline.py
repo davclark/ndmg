@@ -85,10 +85,10 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
     print "Aligning volumes..."
     mgr().mri2atlas(fmri, mprage, atlas, aligned_fmri, outdir, 'f')
 
-    mgts().voxel_timeseries(fmri, mask, voxel_ts)
+    mgts().voxel_timeseries(aligned_fmri, mask, voxel_ts)
     for idx, label in enumerate(label_name):
         print "Extracting roi timeseries for " + label + "parcellation..."
-        mgts().roi_timeseries(fmri, label, roi_ts[idx])
+        mgts().roi_timeseries(aligned_fmri, label, roi_ts[idx])
 
     print "Complete!"
     pass
