@@ -90,6 +90,17 @@ class utils():
         print gtab.info
         return gtab
 
+    def get_slice(self, data, volid):
+        """
+        Takes a volume index and returns the volume at that index.
+
+        **Positional Arguments:**
+            - data: the data to extract a volume from.
+            - volid: the index of the volume desired.
+        """
+        vol = np.squeeze(data[:, :, :, volid])
+        return vol
+
     def get_b0(self, gtab, data):
         """
         Takes bval and bvec files and produces a structure in dipy format

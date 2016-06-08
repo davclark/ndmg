@@ -25,6 +25,7 @@ import ndmg.utils as ndu
 import nibabel as nb
 import numpy as np
 import nilearn.image as nl
+import sys  # remove this before releasing; only here so we can get new utils
 
 
 class register(object):
@@ -167,12 +168,28 @@ class register(object):
         atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
 
         if (opt == 'f'):
-            mri1 = outdir + "/tmp/" + mri_name + "_mc.nii.gz"
+            mri_mc1 = outdir + "/tmp/" + mri_name + "_mc.nii.gz"
+            s0_name = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
 
             # align the fMRI volumes to the 0th volume in each stack
             # EB TODO: figure out whether we want to align to the 0th vol
             # or the mean vol in each stack
-            self.align_slices(mri, mri1, 0, 'f')
+            self.align_slices(mri, mri_mc1, 0, 'f')
+
+            mri_mc = nb.load(mri_mc1)
+
+            sys.path.insert(0, '..')  # TODO: remove this before releasing
+
+            import utils.utils as mgu
+            s0 = mgu().get_slice(mri_mc.get_data(), 0)  # get the 0th slice
+
+            # Wraps B0 volume in new nifti image
+            s0_head = mri_mc.get_header()
+            s0_head.set_data_shape(s0_head.get_data_shape()[0:3])
+            s0_out = nb.Nifti1Image(s0, affine=mri_mc.get_affine(),
+                                    header=s0_head)
+            s0_out.update_header()
+            nb.save(s0_out, s0_name)
 
         else:
             gtab = kwargs['gtab']
