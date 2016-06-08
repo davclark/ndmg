@@ -30,26 +30,68 @@ class timeseries():
         """
         pass
 
-    def voxel_timeseries(self, fmri, mask):
+    def get_mask(self, mask_ra, value):
+        """
+        Function to create a brain mask by thresholding the labels
+
+        **Positional Arguements**
+            -mask_ra: the mask array file containing the array data
+            -value: the value to get the mask for
+        """
+        pass
+
+    def voxel_timeseries(self, fmri_file, mask_file, voxel_file):
         """
         Function to extract timeseries for the voxels in the provided
         mask.
 
         **Positional Arguments**
-            - fmri: the path to the fmri 4d volume to extract timeseries for
-            - mask: the path to the binary mask the user wants to extract the
+            - fmri_file: the path to the fmri 4d volume to extract timeseries
+            - mask_file: the path to the binary mask the user wants to extract
                     voxel timeseries over
+            - voxel_file: the path to the voxel timeseries to be created
         """
+        mask = nb.load(mask_file)
+        maskdata = mask.get_data()
+
+        maskbool = (maskdata > 0)  # extract timeseries for any labelled voxels
+
+        fmri = nb.load(fmri_file)
+        fmridata = fmri.get_data()
+
+        voxel_ts = fmridata[maskbool, :]
+        np.savez(voxel_file, voxel_ts)
         pass
 
-    def roi_timeseries(self, fmri, label):
+    def roi_timeseries(self, fmri_file, label_file, roits_file):
         """
         Function to extract average timeseries for the voxels in each
         roi of the labelled atlas.
 
         **Positional Arguments**
-            - fmri: the path to the 4d volume to extract timeseries for
-            - label: the path to the labelled atlas containing roi labels
+            - fmri_file: the path to the 4d volume to extract timeseries
+            - label_file: the path to the labelled atlas containing labels
                     for the voxels in the fmri image
+            - roits_file: the path to where the roi timeseries will be saved
         """
+        label = nb.load(mask_file)
+        labeldata = label.get_data()
+
+        rois = np.unique(labeldata[labeldata > 0])
+
+        fmri = nb.load(fmri_file)
+        fmridata = fmri.get_data()
+
+        # initialize so resulting ra is [numrois]x[numtimepoints]
+        roi_ts = np.zeros((rois.shape[0], fmridata.shape[3]))
+
+        for roi in rois:
+            roi_idx = np.where(rois == roi)[0][0]  # the index of the roi
+
+            roibool = (labeldata == roi)  # get a bool where our voxels in roi
+            roi_voxelwisets = fmridata[roibool, :]
+
+            roi_ts[roi_idx, :] = np.mean(roi_voxelwisets, axis=0)
+
+        np.savez(rots_file, roi_ts)
         pass
