@@ -211,7 +211,7 @@ class register(object):
             nb.save(s0_out, s0_name)
 
             self.align(s0_name, mprage, xfm_0tompr)
-            self.align(mprage, atlas, xfmmprtotemp)
+            self.align(mprage, atlas, xfm_mprtotemp)
             self.combine_xfms(xfm_mprtotemp, xfm_0tompr, xfm_comb)
 
             self.applyxfm(mri_mc, atlas, xfm_comb, mri_tempreg)
