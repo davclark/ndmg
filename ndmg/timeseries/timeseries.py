@@ -51,6 +51,7 @@ class timeseries():
                     voxel timeseries over
             - voxel_file: the path to the voxel timeseries to be created
         """
+        print "Extracting Voxel Timeseries..."
         mask = nb.load(mask_file)
         maskdata = mask.get_data()
 
