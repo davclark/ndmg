@@ -30,7 +30,7 @@ import graph.graph as mgg
 import ndmg.preproc as mgp
 import numpy as np
 import nibabel as nb
-import timeseries.timeseries as mgts
+from timeseries.timeseries import timeseries as mgts
 
 
 def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
@@ -87,7 +87,7 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
 
     mgts().voxel_timeseries(aligned_fmri, mask, voxel_ts)
     for idx, label in enumerate(label_name):
-        print "Extracting roi timeseries for " + label + "parcellation..."
+        print "Extracting roi timeseries for " + label + " parcellation..."
         mgts().roi_timeseries(aligned_fmri, label, roi_ts[idx])
 
     print "Complete!"

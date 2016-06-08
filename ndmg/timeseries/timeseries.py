@@ -75,7 +75,7 @@ class timeseries():
                     for the voxels in the fmri image
             - roits_file: the path to where the roi timeseries will be saved
         """
-        label = nb.load(mask_file)
+        label = nb.load(label_file)
         labeldata = label.get_data()
 
         rois = np.unique(labeldata[labeldata > 0])
