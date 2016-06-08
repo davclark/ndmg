@@ -30,6 +30,7 @@ import graph.graph as mgg
 import ndmg.preproc as mgp
 import numpy as np
 import nibabel as nb
+import timeseries.timeseries as mgts
 
 
 def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
@@ -59,6 +60,8 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
                       stdout=PIPE, stderr=PIPE, shell=True)
     else:
         label_name = op.splitext(op.splitext(op.basename(labels))[0])[0]
+        p = Popen("mkdir -p " + outdir + "/roi_timeseries" + label_name,
+                  stdout=PIPE, stderr=PIPE, shell=True)
         p = Popen("mkdir -p " + outdir + "/graphs/" + label_name,
                   stdout=PIPE, stderr=PIPE, shell=True)
 
@@ -73,12 +76,19 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
     # Again, graphs are different
     graphs = [outdir + "/graphs/" + x + '/' + fmri_name + "_" + x + '.' + fmt
               for x in label_name]
+    roi_ts = [outdir + "/roi_timeseries" + x + '/' + fmri_name + "_" + x +
+              ".npz" for x in label_name]
     print "Graphs of streamlines downsampled to given labels: " +\
           (", ".join([x for x in graphs]))
 
     # Align fMRI volumes to Atlas
     print "Aligning volumes..."
     mgr().mri2atlas(fmri, mprage, atlas, aligned_fmri, outdir, 'f')
+
+    mgts().voxel_timeseries(fmri, mask, voxel_ts)
+    for idx, label in enumerate(label_name):
+        print "Generating roi timeseries for " + label + "parcellation..."
+        mgts().roi_timeseries(fmri, label, roi_ts[idx])
 
     print "Complete!"
     pass
