@@ -137,7 +137,7 @@ class register(object):
         nb.save(target_im, ingested)
         pass
 
-    def combine_xfms(xfm1, xfm2, xfmout):
+    def combine_xfms(self, xfm1, xfm2, xfmout):
         """
         A function to combine two transformations, and output the
         resulting transformation.
@@ -214,7 +214,7 @@ class register(object):
             self.align(mprage, atlas, xfm_mprtotemp)
             self.combine_xfms(xfm_mprtotemp, xfm_0tompr, xfm_comb)
 
-            self.applyxfm(mri_mc, atlas, xfm_comb, mri_tempreg)
+            self.applyxfm(mri_mc1, atlas, xfm_comb, mri_tempreg)
             self.resample(mri_tempreg, aligned_mri, atlas)
 
         else:
