@@ -18,7 +18,11 @@
 # Email: ebridge2@jhu.edu
 
 import matplotlib.pyplot as plt
-import numpy.ndarray as nar
+from numpy import ndarray as nar
+import numpy as np
+from scipy.stats import gaussian_kde
+from subprocess import Popen, PIPE
+import nibabel as nb
 
 
 class quality_control(object):
@@ -30,7 +34,7 @@ class quality_control(object):
         """
         pass
 
-    def dice_coefficient(a, b):
+    def dice_coefficient(self, a, b):
         """
         dice coefficient 2nt/na + nb.
         Code taken from https://en.wikibooks.org/wiki/Algorithm_Implementation
@@ -61,15 +65,20 @@ class quality_control(object):
         dice_coeff = overlap * 2.0/(len(a_bigrams) + len(b_bigrams))
         return dice_coeff
 
-    def mse(imageA, imageB):
+    def mse(self, imageA, imageB):
         """
         the 'Mean Squared Error' between the two images is the
         sum of the squared difference between the two images;
         NOTE: the two images must have the same dimension
         from http://www.pyimagesearch.com/2014/09/15/python-compare-two-images/
+        NOTE: we've normalized the signals by the mean intensity at each
+        point to make comparisons btwn fMRI and MPRAGE more viable.
+        Otherwise, fMRI signal vastly overpowers MPRAGE signal and our MSE
+        would have very low accuracy (fMRI signal differences >>> actual
+        differences we are looking for).
         """
-        imageA = imageA/sum(sum(sum(imageA)))
-        imageB = imageB/sum(sum(sum(imageB)))
+        imageA = imageA/np.mean(imageA)
+        imageB = imageB/np.mean(imageB)
         err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
         err /= float(imageA.shape[0] * imageA.shape[1])
 
@@ -77,7 +86,7 @@ class quality_control(object):
         # the two images are
         return err
 
-    def plot_kdes(self, before, after, steps=1000):
+    def compute_kdes(self, before, after, steps=1000):
         """
         A function to plot kdes of the arrays for the similarity between
         the before/reference and after/reference.
@@ -131,6 +140,11 @@ class quality_control(object):
             - bin=binary: a bool indicating whether to binarize the scans
                           to analyze alignment for (defaults to False)
         """
+        print "Performing Quality Control for " + title + "..."
+        cmd = "mkdir -p " + outdir + "/" + fname
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
+
         # load the nifti images
         mri_before = nb.load(mri_bname)
         mri_after = nb.load(mri_aname)
@@ -146,7 +160,8 @@ class quality_control(object):
 
         # dice_file = outdir + "/" + fname + ".csv"
         # csv = open(dice_file, 'w')
-        slice_ref = refdata[:, :, 100]
+        refslice = round(0.5 * slices)
+        slice_ref = refdata[:, :, refslice]
 
         v_bef = np.zeros(timesteps)
         v_aft = np.zeros(timesteps)
@@ -155,32 +170,41 @@ class quality_control(object):
             v_bef[t] = self.mse(mri_bdata[:, :, :, t], refdata[:, :, :])
             v_aft[t] = self.mse(mri_adata[:, :, :, t], refdata[:, :, :])
             # csv.write(str(v_bef) + "," + str(v_after) + "\n")
-            slice_before = mri_bdata[:, :, 100, t]  # TODO EB:replace with mean
-            slice_after = mri_adata[:, :, 100, t]
+            slice_before = mri_bdata[:, :, refslice, t]
+            # TODO EB:replace refslice and time sequence with mean
+            slice_after = mri_adata[:, :, refslice, t]
 
             plt.subplot(1, 2, 1)
             plt.imshow(slice_before, cmap='gray', interpolation='nearest')
             plt.hold(True)
             plt.imshow(slice_ref, cmap='winter', interpolation='nearest',
                        alpha=0.3)
-            plt.title("Similarity = %.2E" % v_bef[t])
+            plt.title("Error = %.2E" % v_bef[t])
+            plt.xlabel('Position (mm)')
+            plt.ylabel('Position (mm)')
             plt.subplot(1, 2, 2)
             plt.imshow(slice_after, cmap='gray', interpolation='nearest')
             plt.hold(True)
             plt.imshow(slice_ref, cmap='winter', interpolation='nearest',
                        alpha=0.3)
-            plt.title("Similarity = %.2E" % v_aft[t])
-            fnamets = outdir + "/" + fname + "_" + str(t) + "_ts"
+            plt.title("Error = %.2E" % v_aft[t])
+            plt.xlabel('Position (mm)')
+            plt.ylabel('Position (mm)')
+            fnamets = outdir + "/" + fname + "/" + fname + "_" + str(t) + "_ts"
             plt.savefig(fnamets + ".png")
+            plt.clf()
 
-        kdes = self.compute_kdes(v_bef, v_after)
+        kdes = self.compute_kdes(v_bef, v_aft)
         plt.plot(kdes[0])
         plt.hold(True)
         plt.plot(kdes[1])
-        plt.title(title + " Hellinger Distance = " +
-                  str(self.hdist(kdes[0], kdes[1])))
+        plt.title(title + (" Hellinger Distance = %.4E" %
+                  self.hdist(kdes[0], kdes[1])))
         plt.xlabel('MSE')
         plt.ylabel('Density')
-        plt.legend(handles=['before', 'after'])
-        plt.savefig(fname + ".png")
+        plt.legend(['before, mean = %.2E' % np.mean(v_bef),
+                   'after, mean = %.2E' % np.mean(v_aft)])
+        fnamekde = outdir + "/" + fname + "_kde"
+        plt.savefig(fnamekde + ".png")
+        plt.clf()
         pass

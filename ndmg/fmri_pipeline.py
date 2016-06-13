@@ -45,7 +45,8 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
     fmri_name = op.splitext(op.splitext(op.basename(fmri))[0])[0]
     cmd = "mkdir -p " + outdir + "/reg_fmri " + outdir +\
         "/voxel_timeseries " + outdir + "/roi_timeseries " +\
-        outdir + "/graphs"
+        outdir + "/graphs " + outdir + "/qc " +\
+        outdir + "/qc/mc " + outdir + "/qc/reg"
     p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
     p.communicate()
 

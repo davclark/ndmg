@@ -207,8 +207,8 @@ class register(object):
             xfm_mprtotemp = outdir + "/tmp/" + mri_name + "_xfm_mprtotem.mat"
             xfm_comb = outdir + "/tmp/" + mri_name + "_xfm_comb.mat"
             mri_res = outdir + "/tmp/" + mri_name + "_res.nii.gz"
-            qc_mc = outdir + "/qc/mc/" + mri_name
-            qc_reg = outdir + "/qc/reg/" + mri_name
+            qc_mc = outdir + "/qc/mc/"
+            qc_reg = outdir + "/qc/reg/"
 
             # align the fMRI volumes to the 0th volume in each stack
             # EB TODO: figure out whether we want to align to the 0th vol
@@ -221,9 +221,11 @@ class register(object):
             self.resample_fsl(mri_mc, mri_res, atlas)  # this doesn't work
             mgu().get_slice(mri_mc, 0, s0)  # get the 0 slice and save
             # mgu().get_slice(mri_mc, 0, s0)
-            mgqc().check_alignments(mri, mri_mc, s0, qc_mc, mri_name +
-                                    "_mc", title="Motion Correction")
+            from qc.quality_control import quality_control as mgqc
+            mgqc().check_alignments(mri, mri_mc, s0, qc_mc, mri_name,
+                                    title="Motion Correction")
 
+            # TODO EB: do we want to align the resampled image?
             self.align(s0, mprage, xfm_0tompr)
             self.align(mprage, atlas, xfm_mprtotemp)
             self.combine_xfms(xfm_mprtotemp, xfm_0tompr, xfm_comb)
@@ -231,7 +233,7 @@ class register(object):
             self.applyxfm(mri_mc, atlas, xfm_comb, aligned_mri)
             # self.applyxfm(mri_mc, atlas, xfm_comb, aligned_mri)
             mgqc().check_alignments(mri_res, aligned_mri, atlas, qc_reg,
-                                    mri_name + "_reg", title="Registration")
+                                    mri_name, title="Registration")
 
         else:
             gtab = kwargs['gtab']
