@@ -125,6 +125,8 @@ class register(object):
                 template:
                     - Image that is the target of the alignment
         """
+        print "Executing resample for " + base + "to resolution of " +\
+              template + "..."
         # Loads images
         template_im = nb.load(template)
         base_im = nb.load(base)
@@ -136,6 +138,22 @@ class register(object):
         # Saves new image
         nb.save(target_im, ingested)
         pass
+
+    def resample_fsl(self, base, res, template):
+        """
+        A function to resample a base image in fsl to that of a template.
+
+        **Positional Arguments:**
+            - base: the path to the base image to resample.
+            - res: the filename after resampling.
+            - template: the template image to align to.
+        """
+        goal_res = int(nb.load(template).header["pixdim"][1])
+        cmd = "flirt -in " + base + " -ref " + template + " -out " +\
+              res + " -nosearch -applyisoxfm " + str(goal_res)
+        print "Executing: " + cmd
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
 
     def combine_xfms(self, xfm1, xfm2, xfmout):
         """
@@ -183,39 +201,37 @@ class register(object):
         atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
 
         if (opt == 'f'):
-            mri_mc1 = outdir + "/tmp/" + mri_name + "_mc.nii.gz"
-            s0_name = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
+            mri_mc = outdir + "/tmp/" + mri_name + "_mc.nii.gz"
+            s0 = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
             xfm_0tompr = outdir + "/tmp/" + mri_name + "_xfm_0tompr.mat"
             xfm_mprtotemp = outdir + "/tmp/" + mri_name + "_xfm_mprtotem.mat"
             xfm_comb = outdir + "/tmp/" + mri_name + "_xfm_comb.mat"
-            mri_tempreg = outdir + "/tmp/" + mri_name + "_reg.nii.gz"
+            mri_res = outdir + "/tmp/" + mri_name + "_res.nii.gz"
+            qc_mc = outdir + "/qc/mc/" + mri_name
+            qc_reg = outdir + "/qc/reg/" + mri_name
 
             # align the fMRI volumes to the 0th volume in each stack
             # EB TODO: figure out whether we want to align to the 0th vol
             # or the mean vol in each stack
-            self.align_slices(mri, mri_mc1, 0, 'f')
-
-            mri_mc = nb.load(mri_mc1)
+            self.align_slices(mri, mri_mc, 0, 'f')
 
             sys.path.insert(0, '..')  # TODO: remove this before releasing
 
             import utils.utils as mgu
-            s0_im = mgu().get_slice(mri_mc.get_data(), 0)  # get the 0th slice
+            self.resample_fsl(mri_mc, mri_res, atlas)  # this doesn't work
+            mgu().get_slice(mri_mc, 0, s0)  # get the 0 slice and save
+            # mgu().get_slice(mri_mc, 0, s0)
+            mgqc().check_alignments(mri, mri_mc, s0, qc_mc, mri_name +
+                                    "_mc", title="Motion Correction")
 
-            # Wraps B0 volume in new nifti image
-            s0_head = mri_mc.get_header()
-            s0_head.set_data_shape(s0_head.get_data_shape()[0:3])
-            s0_out = nb.Nifti1Image(s0_im, affine=mri_mc.get_affine(),
-                                    header=s0_head)
-            s0_out.update_header()
-            nb.save(s0_out, s0_name)
-
-            self.align(s0_name, mprage, xfm_0tompr)
+            self.align(s0, mprage, xfm_0tompr)
             self.align(mprage, atlas, xfm_mprtotemp)
             self.combine_xfms(xfm_mprtotemp, xfm_0tompr, xfm_comb)
 
-            self.applyxfm(mri_mc1, atlas, xfm_comb, mri_tempreg)
-            self.resample(mri_tempreg, aligned_mri, atlas)
+            self.applyxfm(mri_mc, atlas, xfm_comb, aligned_mri)
+            # self.applyxfm(mri_mc, atlas, xfm_comb, aligned_mri)
+            mgqc().check_alignments(mri_res, aligned_mri, atlas, qc_reg,
+                                    mri_name + "_reg", title="Registration")
 
         else:
             gtab = kwargs['gtab']

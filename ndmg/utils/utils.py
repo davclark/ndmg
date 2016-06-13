@@ -90,16 +90,30 @@ class utils():
         print gtab.info
         return gtab
 
-    def get_slice(self, data, volid):
+    def get_slice(self, mri, volid, sli):
         """
-        Takes a volume index and returns the volume at that index.
+        Takes a volume index and constructs a new nifti image from
+        the specified volume.
 
         **Positional Arguments:**
-            - data: the data to extract a volume from.
+            - mri: the path to a 4d mri volume to extract a slice from.
             - volid: the index of the volume desired.
+            - sli: the path to the destination for the slice.
         """
+        mri_im = nb.load(mri)
+        data = mri_im.get_data()
+        # get the slice at the desired volume
         vol = np.squeeze(data[:, :, :, volid])
-        return vol
+
+        # Wraps volume in new nifti image
+        head = mri_im.get_header()
+        head.set_data_shape(head.get_data_shape()[0:3])
+        out = nb.Nifti1Image(vol, affine=mri_im.get_affine(),
+                             header=head)
+        out.update_header()
+        # and saved to a new file
+        nb.save(out, sli)
+        pass
 
     def get_b0(self, gtab, data):
         """

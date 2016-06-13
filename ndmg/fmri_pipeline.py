@@ -26,7 +26,7 @@ import os.path as op
 import utils.utils as mgu
 from register.register import register as mgr
 import track.track as mgt
-import graph.graph as mgg
+from graph.graph import graph as mgg
 import ndmg.preproc as mgp
 import numpy as np
 import nibabel as nb
@@ -60,7 +60,7 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
                       stdout=PIPE, stderr=PIPE, shell=True)
     else:
         label_name = op.splitext(op.splitext(op.basename(labels))[0])[0]
-        p = Popen("mkdir -p " + outdir + "/roi_timeseries" + label_name,
+        p = Popen("mkdir -p " + outdir + "/roi_timeseries/" + label_name,
                   stdout=PIPE, stderr=PIPE, shell=True)
         p = Popen("mkdir -p " + outdir + "/graphs/" + label_name,
                   stdout=PIPE, stderr=PIPE, shell=True)
@@ -76,10 +76,10 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
     # Again, graphs are different
     graphs = [outdir + "/graphs/" + x + '/' + fmri_name + "_" + x + '.' + fmt
               for x in label_name]
-    roi_ts = [outdir + "/roi_timeseries" + x + '/' + fmri_name + "_" + x +
+    roi_ts = [outdir + "/roi_timeseries/" + x + '/' + fmri_name + "_" + x +
               ".npz" for x in label_name]
-    print "Graphs of streamlines downsampled to given labels: " +\
-          (", ".join([x for x in graphs]))
+    print "ROI timecourse downsampled to given labels: " +\
+          (", ".join([x for x in roi_ts]))
 
     # Align fMRI volumes to Atlas
     print "Aligning volumes..."
@@ -88,7 +88,11 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
     mgts().voxel_timeseries(aligned_fmri, mask, voxel_ts)
     for idx, label in enumerate(label_name):
         print "Extracting roi timeseries for " + label + " parcellation..."
-        mgts().roi_timeseries(aligned_fmri, labels[idx], roi_ts[idx])
+        ts = mgts().roi_timeseries(aligned_fmri, labels[idx], roi_ts[idx])
+        graph = mgg(ts.shape[0], labels[idx])
+        graph.cor_graph(ts)
+        graph.summary()
+        graph.save_graph(graphs[idx], fmt=fmt)
 
     print "Complete!"
     pass

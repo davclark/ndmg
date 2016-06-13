@@ -78,7 +78,7 @@ class timeseries():
         label = nb.load(label_file)
         labeldata = label.get_data()
 
-        rois = np.unique(labeldata[labeldata > 0])
+        rois = np.sort(np.unique(labeldata[labeldata > 0]))
 
         fmri = nb.load(fmri_file)
         fmridata = fmri.get_data()
@@ -95,4 +95,4 @@ class timeseries():
             roi_ts[roi_idx, :] = np.mean(roi_voxelwisets, axis=0)
 
         np.savez(roits_file, roi_ts)
-        pass
+        return roi_ts
