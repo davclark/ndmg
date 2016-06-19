@@ -23,6 +23,7 @@ import numpy as np
 from scipy.stats import gaussian_kde
 from subprocess import Popen, PIPE
 import nibabel as nb
+import sys
 
 
 class quality_control(object):
@@ -100,7 +101,7 @@ class quality_control(object):
         x_grid = np.linspace(x_min, x_max, steps)
         kdebef = gaussian_kde(before)
         kdeaft = gaussian_kde(after)
-        return [kdebef.evaluate(x_grid), kdeaft.evaluate(x_grid)]
+        return [x_grid, kdebef.evaluate(x_grid), kdeaft.evaluate(x_grid)]
 
     def hdist(self, array1, array2):
         """
@@ -141,7 +142,8 @@ class quality_control(object):
                           to analyze alignment for (defaults to False)
         """
         print "Performing Quality Control for " + title + "..."
-        cmd = "mkdir -p " + outdir + "/" + fname
+        cmd = "mkdir -p " + outdir + "/" + fname + " " +\
+              outdir + "/" + fname + "/timecourse"
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
 
@@ -190,21 +192,288 @@ class quality_control(object):
             plt.title("Error = %.2E" % v_aft[t])
             plt.xlabel('Position (mm)')
             plt.ylabel('Position (mm)')
-            fnamets = outdir + "/" + fname + "/" + fname + "_" + str(t) + "_ts"
+            plt.yaxis.tick_right()
+            fnamets = outdir + "/" + fname + "/timecourse/"
+            fnamets = fnamets + fname + "_" + str(t) + "_ts"
             plt.savefig(fnamets + ".png")
             plt.clf()
 
         kdes = self.compute_kdes(v_bef, v_aft)
-        plt.plot(kdes[0])
-        plt.hold(True)
-        plt.plot(kdes[1])
-        plt.title(title + (" Hellinger Distance = %.4E" %
-                  self.hdist(kdes[0], kdes[1])))
-        plt.xlabel('MSE')
-        plt.ylabel('Density')
-        plt.legend(['before, mean = %.2E' % np.mean(v_bef),
-                   'after, mean = %.2E' % np.mean(v_aft)])
+        fkde = plt.figure()
+        axkde = fkde.add_subplot(111)
+        axkde.plot(kdes[0], kdes[1])
+        axkde.plot(kdes[0], kdes[2])
+        axkde.set_title(title + (" Hellinger Distance = %.4E" %
+                        self.hdist(kdes[0], kdes[1])))
+        axkde.set_xlabel('MSE')
+        axkde.set_ylabel('Density')
+        axkde.legend(['before, mean = %.2E' % np.mean(v_bef),
+                     'after, mean = %.2E' % np.mean(v_aft)])
         fnamekde = outdir + "/" + fname + "_kde"
-        plt.savefig(fnamekde + ".png")
-        plt.clf()
+        fkde.savefig(fnamekde + ".png")
+        pass
+
+    def stat_summary(self, mri, mri_raw, mri_mc, mask, title="", fname=""):
+        """
+        A function for producing a stat summary page, along with
+        an image of all the slices of this mri scan.
+
+        **Outputs:**
+            - Mean figure: plot for each voxel's mean signal intensity for
+              each voxel in the corrected mri's timecourse
+            - STdev figure: plot of the standard deviation of each voxel's
+              corrected timecourse
+            - SNR figure: plot of signal to noise ratio for each voxel in the
+              corrected timecourse
+            - Slice Wise Intensity figure: averages intensity over slices
+              and plots each slice as a line for corrected mri
+                - goal: slice mean signal intensity is approximately same
+                  throughout all timepoints (lines are relatively flat)
+            - motion parameters figures (3):
+                - 1 figure for rotational, 1 figure for translational motion
+                  params, 1 for displacement, calculated with fsl's mcflirt
+            - stat summary file:
+                - provides some useful statistics for analyzing fMRI data;
+                  see resources for each individual statistic for the
+                  computation
+
+        **Positional Arguments:**
+            - mri: the path to a corrected mri scan to analyze
+            - mri_raw: the path to an uncorrected mri scan to analyze
+            - title: the title for the file (ie, Registered, Resampled, etc)
+            - fname: the name to give the file.
+            - tmpname: the name appended to any temporary files created.
+        """
+        print "Producing Quality Control Summary. \n" +\
+            "\tRaw Image: " + mri_raw + "\n" +\
+            "\tCorrected Image: " + mri + "\n" +\
+            "\tMask: " + mask + "\n"
+        mri_im = nb.load(mri)
+        mri_dat = mri_im.get_data()
+        mri_raw_im = nb.load(mri_raw)
+
+        sys.path.insert(0, '..')  # TODO EB: remove this before releasing
+        from timeseries.timeseries import timeseries as mgtc
+        # get voxel timeseries for some computations
+        voxel = mgtc().voxel_timeseries(mri_dat, mask)
+
+        # image for mean signal intensity over time
+        mri_datmean = np.mean(mri_dat, axis=3)
+        fmean = plt.figure()
+        # image for stdev over time
+        mri_datstd = np.std(mri_dat, axis=3)
+        fstd = plt.figure()
+
+        # image for slice SNR = mean / stdev
+        mri_datsnr = np.divide(mri_datmean, mri_datstd)
+        fsnr = plt.figure()
+
+        # image for slice-wise mean intensity
+        mri_datmi = np.squeeze(np.apply_over_axes(np.mean,
+                                                  mri_dat, (0, 1)))
+        fmi = plt.figure()
+        axmi = fmi.add_subplot(111)
+
+        depth = mri_dat.shape[2]
+        nrows = np.ceil(np.sqrt(depth))
+        ncols = np.ceil(depth/nrows)
+
+        # produce figures for each slice in the image
+        for d in depth:
+            axmean = fmean_subplot(nrows, ncols, d+1)
+            axfmean.imshow(mri_datmean[:, :, d], cmap='gray',
+                           interpolation='nearest')
+            axmean.set_xlabel('Position (res)')
+            axmean.set_ylabel('Position (res)')
+            axmean.set_title('%d slice' % d)
+
+            axstd = fstd.add_subplot(nrows, ncols, d+1)
+            axstd.imshow(mri_datstd[:, :, d], cmap='gray',
+                         interpolation='nearest')
+            axstd.set_xlabel('Position (res)')
+            axstd.set_ylabel('Position (res)')
+            axstd.set_title('%d slice' % d)
+
+            axsnr = fsnr.add_subplot(nrows, ncols, d+1)
+            axsnr.imshow(mri_datsnr[:, :, d], cmap='gray',
+                         interpolation='nearest')
+            axsnr.set_xlabel('Position (res)')
+            axsnr.set_ylabel('Position (res)')
+            axsnr.set_title('%d slice' % d)
+
+            axmi.plot(mri_datmi[d, :])
+
+        axmi.set_xlabel('Timepoint')
+        axmi.set_ylabel('Mean Intensity')
+        axmi.set_title('Mean Slice Intensity')
+
+        fmean.savefig(fname + "_mean.png")
+        fstd.savefig(fname + "_std.png")
+        fsnr.savefig(fname + "_snr.png")
+        fmi.savefig(fname + "_slice_intens.png")
+
+        par_file = mri_mc + ".par"
+
+        timepoints = mri_dat.shape[3]
+        abs_pos = np.zeros((timepoints, 6))
+        rel_pos = np.zeros((timepoints, 6))
+        with open(par_file) as f:
+            counter = 0
+            for line in f:
+                abs_pos[counter, :] = [float(i) for i in re.split("\\s+",
+                                                                  mystr)]
+                if counter > 0:
+                    rel_pos[counter, :] = np.subtract(abs_pos[counter, :],
+                                                      abs_pos[counter-1, :])
+                counter += 1
+
+        trans_abs = np.linalg.norm(abs_pos[3:6], axis=1)
+        trans_rel = np.linalg.norm(rel_pos[3:6], axis=1)
+        rot_abs = np.linalg.norm(abs_pos[0:3], axis=1)
+        rot_rel = np.linalg.norm(rel_pos[0:3], axis=1)
+
+        ftrans = plt.figure()
+        axtrans = fmc.add_subplot(111)
+        axtrans.plot(params[:, 3:6])  # plots the parameters
+        axtrans.set_xlabel('Timepoint')
+        axtrans.set_ylabel('Translation (mm)')
+        axtrans.set_title('Translational Motion Parameters')
+        axtrans.legend(['x', 'y', 'z'])
+        ftrans.savefig(fname + "_trans_mc.png")
+
+        frot = plt.figure()
+        axrot = frot.add_subplot(111)
+        axrot.plot(params[:, 0:3])
+        axtrans.set_xlabel('Timepoint')
+        axtrans.set_ylabel('Rotation (rad)')
+        axtrans.set_title('Rotational Motion Parameters')
+        axtrans.legend(['x', 'y', 'z'])
+        frot.savefig(fname + "_rot_mc.png")
+
+        fmc = plt.figure()
+        axmc = fmc.add_subplot(111)
+        axrot.plot(trans_abs)
+        axrot.plot(trans_rel)
+        axrot.set_xlabel('Timepoint')
+        axmc.set_ylabel('Movement (mm)')
+        axmc.set_title('Estimated Displacement')
+        axmc.legend(['absolute', 'relative'])
+        fmc.savefig(fname + "_disp_mc.png")
+
+        fstat = open(fname + "stat_sum.txt", 'w')
+        fstat.write("General Information\n")
+        fstat.write("Raw Image Resolution: " +
+                    str(mri_raw_im.get_header().get_zooms()[0:3]) + "\n")
+        fstat.write("Corrected Image Resolution: " +
+                    str(mri_im.get_header().get_zooms()[0:3]) + "\n")
+        fstat.write("Number of Volumes: " + str(mri_dat.shape[3]))
+
+        fstat.write("\n\n")
+        fstat.write("Signal  Statistics\n")
+        fstat.write("Signal Mean: %.4f\n" % np.mean(mri_dat_masked))
+        fstat.write("Signal Stdev: %.4f\n" % np.std(mri_dat_masked))
+        fstat.write("Number of Voxels: %d\n" % mri_dat_masked.shape[0])
+        fstat.write("Average SNR per voxel: %.4f" % str(
+                np.nanmean(np.divide(np.mean(voxel, axis=1),
+                           np.std(std(voxel, axis=1))))) + "\n")
+        fstat.write("\n\n")
+
+        # Motion Statistics
+        mean_abs = np.mean(abs_pos, axis=1)  # column wise means per param
+        std_abs = np.std(abs_pos, axis=1)
+        max_abs = np.max(abs_pos, axis=1)
+        mean_rel = np.mean(rel_pos, axis=1)
+        std_rel = np.std(rel_pos, axis=1)
+        max_rel = np.max(rel_pos, axis=1)
+        fstat.write("Motion Statistics\n")
+        fstat.write("Absolute Translational Statistics>>\n")
+        fstat.write("Max absolute motion: %.4f\n" % max(trans_abs))
+        fstat.write("Mean absolute motion: %.4f\n" % np.mean(trans_abs))
+        fstat.write("Mean absolute x motion: %.4f\n" %
+                    mean_abs[3])
+        fstat.write("Std absolute x position: %.4f\n" %
+                    std_abs[3])
+        fstat.write("Max absolute x motion: %.4f\n" %
+                    max_abs[3])
+        fstat.write("Mean absolute y motion: %.4f\n" %
+                    mean_abs[4])
+        fstat.write("Std absolute y position: %.4f\n" %
+                    std_abs[4])
+        fstat.write("Max absolute y motion: %.4f\n" %
+                    max_abs[4])
+        fstat.write("Mean absolute z motion: %.4f\n" %
+                    mean_abs[5])
+        fstat.write("Std absolute z position: %.4f\n" %
+                    std_abs[5])
+        fstat.write("Max absolute z motion: %.4f\n" %
+                    max_abs[5])
+
+        fstat.write("Relative Translational Statistics>>\n")
+        fstat.write("Max relative motion: %.4f\n" % max(trans_rel))
+        fstat.write("Mean relative motion: %.4f\n" % np.mean(trans_rel))
+        fstat.write("Mean relative x motion: %.4f\n" %
+                    mean_abs[3])
+        fstat.write("Std relative x motion: %.4f\n" %
+                    std_rel[3])
+        fstat.write("Max relative x motion: %.4f\n" %
+                    max_rel[3])
+        fstat.write("Mean relative y motion: %.4f\n" %
+                    mean_abs[4])
+        fstat.write("Std relative y motion: %.4f\n" %
+                    std_rel[4])
+        fstat.write("Max relative y motion: %.4f\n" %
+                    max_rel[4])
+        fstat.write("Mean relative z motion: %.4f\n" %
+                    mean_abs[5])
+        fstat.write("Std relative z motion: %.4f\n" %
+                    std_rel[5])
+        fstat.write("Max relative z motion: %.4f\n" %
+                    max_rel[5])
+
+        fstat.write("Absolute Rotational Statistics>>\n")
+        fstat.write("Max absolute rotation: %.4f\n" % max(rot_abs))
+        fstat.write("Mean absolute rotation: %.4f\n" % np.mean(rot_abs))
+        fstat.write("Mean absolute x rotation: %.4f\n" %
+                    mean_abs[0])
+        fstat.write("Std absolute x rotation: %.4f\n" %
+                    std_abs[0])
+        fstat.write("Max absolute x rotation: %.4f\n" %
+                    max_abs[0])
+        fstat.write("Mean absolute y rotation: %.4f\n" %
+                    mean_abs[1])
+        fstat.write("Std absolute y rotation: %.4f\n" %
+                    std_abs[1])
+        fstat.write("Max absolute y rotation: %.4f\n" %
+                    max_abs[1])
+        fstat.write("Mean absolute z rotation: %.4f\n" %
+                    mean_abs[2])
+        fstat.write("Std absolute z rotation: %.4f\n" %
+                    std_abs[2])
+        fstat.write("Max absolute z rotation: %.4f\n" %
+                    max_abs[2])
+
+        fstat.write("Relative Rotational Statistics>>\n")
+        fstat.write("Max relative rotation: %.4f\n" % max(rot_rel))
+        fstat.write("Mean relative rotation: %.4f\n" % np.mean(rot_rel))
+        mean_rel = np.mean(rot_rel, axis=1)
+        fstat.write("Mean relative x rotation: %.4f\n" %
+                    mean_rel[0])
+        fstat.write("Std relative x rotation: %.4f\n" %
+                    std_rel[0])
+        fstat.write("Max relative x rotation: %.4f\n" %
+                    max_rel[0])
+        fstat.write("Mean relative y rotation: %.4f\n" %
+                    mean_rel[1])
+        fstat.write("Std relative y rotation: %.4f\n" %
+                    std_rel[1])
+        fstat.write("Max relative y rotation: %.4f\n" %
+                    max_rel[1])
+        fstat.write("Mean relative z rotation: %.4f\n" %
+                    mean_rel[2])
+        fstat.write("Std relative z rotation: %.4f\n" %
+                    std_rel[2])
+        fstat.write("Max relative z rotation: %.4f\n" %
+                    max_rel[2])
+
+        fstat.close()
         pass

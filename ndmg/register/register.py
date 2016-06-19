@@ -215,7 +215,7 @@ class register(object):
             # or the mean vol in each stack
             self.align_slices(mri, mri_mc, 0, 'f')
 
-            sys.path.insert(0, '..')  # TODO: remove this before releasing
+            sys.path.insert(0, '..')  # TODO EB: remove this before releasing
 
             import utils.utils as mgu
             self.resample_fsl(mri_mc, mri_res, atlas)  # this doesn't work

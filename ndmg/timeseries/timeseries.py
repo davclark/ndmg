@@ -30,44 +30,63 @@ class timeseries():
         """
         pass
 
-    def get_mask(self, mask_ra, value):
+    def get_brain(self, brain_file):
         """
-        Function to create a brain mask by thresholding the labels
+        Opens a brain data series for a mask, mri image, or atlas.
+        Returns a numpy.ndarray representation of a brain.
 
         **Positional Arguements**
-            -mask_ra: the mask array file containing the array data
-            -value: the value to get the mask for
+            -brain_file: an object to open the data for a brain.
+                         Can be a string (path to a brain file),
+                         nibabel.nifti1.nifti1image, or a numpy.ndarray
         """
-        pass
+        if type(brain_file) is np.ndarray:  # if brain passed as matrix
+            braindata = brain_file
+        else:
+            if type(fmri_file) is str:  # object is a path
+                brain = nb.load(fmri_file)
+            elif type(brain_file) is nb.nifti1.Nifti1Image:
+                brain = brain_file
+            else:
+                raise TypeError("Mask file is of type " + type(brain_file) +
+                                "; accepted types are numpy.ndarray, " +
+                                "string, and nibabel.nifti1.Nifti1Image.")
+            braindata = brain.get_data()
+        return braindata
 
-    def voxel_timeseries(self, fmri_file, mask_file, voxel_file):
+    def voxel_timeseries(self, fmri_file, mask_file, voxel_file=""):
         """
         Function to extract timeseries for the voxels in the provided
         mask.
+        Returns the voxel timeseries as a numpy.ndarray.
 
         **Positional Arguments**
-            - fmri_file: the path to the fmri 4d volume to extract timeseries
+            - fmri_file: the path to the fmri 4d volume to extract timeseries.
+                         can be string, nifti1image, or ndarray
             - mask_file: the path to the binary mask the user wants to extract
-                    voxel timeseries over
-            - voxel_file: the path to the voxel timeseries to be created
+                    voxel timeseries over. Can be string, nifti1image, or
+                    ndarray
+            - voxel_file: the path to the voxel timeseries to be created.
+                          Must be string.
         """
         print "Extracting Voxel Timeseries..."
-        mask = nb.load(mask_file)
-        maskdata = mask.get_data()
 
+        # load the mask data
+        maskdata = self.get_brain(mask_file)
         maskbool = (maskdata > 0)  # extract timeseries for any labelled voxels
 
-        fmri = nb.load(fmri_file)
-        fmridata = fmri.get_data()
-
+        # load the MRI data
+        fmridata = self.get_brain(fmri_file)
         voxel_ts = fmridata[maskbool, :]
-        np.savez(voxel_file, voxel_ts)
-        pass
+        if voxel_file:
+            np.savez(voxel_file, voxel_ts)
+        return voxel_ts
 
-    def roi_timeseries(self, fmri_file, label_file, roits_file):
+    def roi_timeseries(self, fmri_file, label_file, roits_file=""):
         """
         Function to extract average timeseries for the voxels in each
         roi of the labelled atlas.
+        Returns the roi timeseries as a numpy.ndarray.
 
         **Positional Arguments**
             - fmri_file: the path to the 4d volume to extract timeseries
@@ -75,13 +94,11 @@ class timeseries():
                     for the voxels in the fmri image
             - roits_file: the path to where the roi timeseries will be saved
         """
-        label = nb.load(label_file)
-        labeldata = label.get_data()
+        labeldata = self.get_brain(label_file)
 
         rois = np.sort(np.unique(labeldata[labeldata > 0]))
 
-        fmri = nb.load(fmri_file)
-        fmridata = fmri.get_data()
+        fmridata = self.get_brain(fmri_file)
 
         # initialize so resulting ra is [numrois]x[numtimepoints]
         roi_ts = np.zeros((rois.shape[0], fmridata.shape[3]))
@@ -94,5 +111,6 @@ class timeseries():
 
             roi_ts[roi_idx, :] = np.mean(roi_voxelwisets, axis=0)
 
-        np.savez(roits_file, roi_ts)
+        if roits_file:
+            np.savez(roits_file, roi_ts)
         return roi_ts
