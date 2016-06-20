@@ -43,8 +43,8 @@ class timeseries():
         if type(brain_file) is np.ndarray:  # if brain passed as matrix
             braindata = brain_file
         else:
-            if type(fmri_file) is str:  # object is a path
-                brain = nb.load(fmri_file)
+            if type(brain_file) is str:  # object is a path
+                brain = nb.load(brain_file)
             elif type(brain_file) is nb.nifti1.Nifti1Image:
                 brain = brain_file
             else:

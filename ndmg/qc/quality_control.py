@@ -24,6 +24,7 @@ from scipy.stats import gaussian_kde
 from subprocess import Popen, PIPE
 import nibabel as nb
 import sys
+import re
 
 
 class quality_control(object):
@@ -119,7 +120,7 @@ class quality_control(object):
                          fname, title="", bin=False):
         """
         A function for checking alignments between two data items.
-        The function produces [numtimepoints] plots in the output
+        The function produces [numnvols] plots in the output
         directory. Each plot is a multiplot comprised of [numslices]
         rows, and 2 columns. The left column shows the overlap between
         the mri scan and the reference before any operation, and the
@@ -228,7 +229,7 @@ class quality_control(object):
             - Slice Wise Intensity figure: averages intensity over slices
               and plots each slice as a line for corrected mri
                 - goal: slice mean signal intensity is approximately same
-                  throughout all timepoints (lines are relatively flat)
+                  throughout all nvols (lines are relatively flat)
             - motion parameters figures (3):
                 - 1 figure for rotational, 1 figure for translational motion
                   params, 1 for displacement, calculated with fsl's mcflirt
@@ -252,15 +253,16 @@ class quality_control(object):
         mri_dat = mri_im.get_data()
         mri_raw_im = nb.load(mri_raw)
 
+        print "Opened MRI Images."
         sys.path.insert(0, '..')  # TODO EB: remove this before releasing
         from timeseries.timeseries import timeseries as mgtc
+
         # get voxel timeseries for some computations
         voxel = mgtc().voxel_timeseries(mri_dat, mask)
 
         # image for mean signal intensity over time
         mri_datmean = np.mean(mri_dat, axis=3)
         fmean = plt.figure()
-        # image for stdev over time
         mri_datstd = np.std(mri_dat, axis=3)
         fstd = plt.figure()
 
@@ -275,14 +277,17 @@ class quality_control(object):
         axmi = fmi.add_subplot(111)
 
         depth = mri_dat.shape[2]
+        nvols = mri_dat.shape[3]
+
         nrows = np.ceil(np.sqrt(depth))
         ncols = np.ceil(depth/nrows)
 
+        mri_dat = None  # done with this, so save memory
         # produce figures for each slice in the image
-        for d in depth:
-            axmean = fmean_subplot(nrows, ncols, d+1)
-            axfmean.imshow(mri_datmean[:, :, d], cmap='gray',
-                           interpolation='nearest')
+        for d in range(0, depth):
+            axmean = fmean.add_subplot(nrows, ncols, d+1)
+            axmean.imshow(mri_datmean[:, :, d], cmap='gray',
+                          interpolation='nearest')
             axmean.set_xlabel('Position (res)')
             axmean.set_ylabel('Position (res)')
             axmean.set_title('%d slice' % d)
@@ -306,7 +311,10 @@ class quality_control(object):
         axmi.set_xlabel('Timepoint')
         axmi.set_ylabel('Mean Intensity')
         axmi.set_title('Mean Slice Intensity')
-
+        axmi.set_xlim((0, nvols))
+        fmean.set_size_inches(nrows*8, ncols*8)
+        fstd.set_size_inches(nrows*8, ncols*8)
+        fsnr.set_size_inches(nrows*8, ncols*8)
         fmean.savefig(fname + "_mean.png")
         fstd.savefig(fname + "_std.png")
         fsnr.savefig(fname + "_snr.png")
@@ -314,81 +322,87 @@ class quality_control(object):
 
         par_file = mri_mc + ".par"
 
-        timepoints = mri_dat.shape[3]
-        abs_pos = np.zeros((timepoints, 6))
-        rel_pos = np.zeros((timepoints, 6))
+        abs_pos = np.zeros((nvols, 6))
+        rel_pos = np.zeros((nvols, 6))
         with open(par_file) as f:
             counter = 0
             for line in f:
                 abs_pos[counter, :] = [float(i) for i in re.split("\\s+",
-                                                                  mystr)]
+                                                                  line)[0:6]]
                 if counter > 0:
                     rel_pos[counter, :] = np.subtract(abs_pos[counter, :],
                                                       abs_pos[counter-1, :])
                 counter += 1
 
-        trans_abs = np.linalg.norm(abs_pos[3:6], axis=1)
-        trans_rel = np.linalg.norm(rel_pos[3:6], axis=1)
-        rot_abs = np.linalg.norm(abs_pos[0:3], axis=1)
-        rot_rel = np.linalg.norm(rel_pos[0:3], axis=1)
+        trans_abs = np.linalg.norm(abs_pos[:, 3:6], axis=1)
+        trans_rel = np.linalg.norm(rel_pos[:, 3:6], axis=1)
+        rot_abs = np.linalg.norm(abs_pos[:, 0:3], axis=1)
+        rot_rel = np.linalg.norm(rel_pos[:, 0:3], axis=1)
 
         ftrans = plt.figure()
-        axtrans = fmc.add_subplot(111)
-        axtrans.plot(params[:, 3:6])  # plots the parameters
+        axtrans = ftrans.add_subplot(111)
+        axtrans.plot(abs_pos[:, 3:6])  # plots the parameters
         axtrans.set_xlabel('Timepoint')
         axtrans.set_ylabel('Translation (mm)')
         axtrans.set_title('Translational Motion Parameters')
         axtrans.legend(['x', 'y', 'z'])
+        axtrans.set_xlim((0, nvols))
         ftrans.savefig(fname + "_trans_mc.png")
 
         frot = plt.figure()
         axrot = frot.add_subplot(111)
-        axrot.plot(params[:, 0:3])
-        axtrans.set_xlabel('Timepoint')
-        axtrans.set_ylabel('Rotation (rad)')
-        axtrans.set_title('Rotational Motion Parameters')
-        axtrans.legend(['x', 'y', 'z'])
+        axrot.plot(abs_pos[:, 0:3])
+        axrot.set_xlabel('Timepoint')
+        axrot.set_ylabel('Rotation (rad)')
+        axrot.set_title('Rotational Motion Parameters')
+        axrot.legend(['x', 'y', 'z'])
+        axrot.set_xlim((0, nvols))
         frot.savefig(fname + "_rot_mc.png")
 
         fmc = plt.figure()
         axmc = fmc.add_subplot(111)
-        axrot.plot(trans_abs)
-        axrot.plot(trans_rel)
-        axrot.set_xlabel('Timepoint')
+        axmc.plot(trans_abs)
+        axmc.plot(trans_rel)
+        axmc.set_xlabel('Timepoint')
         axmc.set_ylabel('Movement (mm)')
         axmc.set_title('Estimated Displacement')
         axmc.legend(['absolute', 'relative'])
+        axmc.set_xlim((0, nvols))
         fmc.savefig(fname + "_disp_mc.png")
 
-        fstat = open(fname + "stat_sum.txt", 'w')
+        fstat = open(fname + "_stat_sum.txt", 'w')
         fstat.write("General Information\n")
         fstat.write("Raw Image Resolution: " +
                     str(mri_raw_im.get_header().get_zooms()[0:3]) + "\n")
         fstat.write("Corrected Image Resolution: " +
                     str(mri_im.get_header().get_zooms()[0:3]) + "\n")
-        fstat.write("Number of Volumes: " + str(mri_dat.shape[3]))
+        fstat.write("Number of Volumes: %d" % nvols)
 
         fstat.write("\n\n")
         fstat.write("Signal  Statistics\n")
-        fstat.write("Signal Mean: %.4f\n" % np.mean(mri_dat_masked))
-        fstat.write("Signal Stdev: %.4f\n" % np.std(mri_dat_masked))
-        fstat.write("Number of Voxels: %d\n" % mri_dat_masked.shape[0])
-        fstat.write("Average SNR per voxel: %.4f" % str(
-                np.nanmean(np.divide(np.mean(voxel, axis=1),
-                           np.std(std(voxel, axis=1))))) + "\n")
+        fstat.write("Signal Mean: %.4f\n" % np.mean(voxel))
+        fstat.write("Signal Stdev: %.4f\n" % np.std(voxel))
+        fstat.write("Number of Voxels: %d\n" % voxel.shape[0])
+        fstat.write("Average SNR per voxel: %.4f\n" %
+                    np.nanmean(np.divide(np.mean(voxel, axis=1),
+                               np.std(voxel, axis=1))))
         fstat.write("\n\n")
 
         # Motion Statistics
-        mean_abs = np.mean(abs_pos, axis=1)  # column wise means per param
-        std_abs = np.std(abs_pos, axis=1)
-        max_abs = np.max(abs_pos, axis=1)
-        mean_rel = np.mean(rel_pos, axis=1)
-        std_rel = np.std(rel_pos, axis=1)
-        max_rel = np.max(rel_pos, axis=1)
+        mean_abs = np.mean(abs_pos, axis=0)  # column wise means per param
+        std_abs = np.std(abs_pos, axis=0)
+        max_abs = np.max(np.abs(abs_pos), axis=0)
+        mean_rel = np.mean(rel_pos, axis=0)
+        std_rel = np.std(rel_pos, axis=0)
+        max_rel = np.max(np.abs(rel_pos), axis=0)
         fstat.write("Motion Statistics\n")
         fstat.write("Absolute Translational Statistics>>\n")
         fstat.write("Max absolute motion: %.4f\n" % max(trans_abs))
         fstat.write("Mean absolute motion: %.4f\n" % np.mean(trans_abs))
+        fstat.write("Number of absolute motions > 1mm: %d\n" %
+                    np.sum(trans_abs > 1))
+        fstat.write("Number of absolute motions > 5mm: %d\n" %
+                    np.sum(trans_abs > 5))
         fstat.write("Mean absolute x motion: %.4f\n" %
                     mean_abs[3])
         fstat.write("Std absolute x position: %.4f\n" %
@@ -411,6 +425,10 @@ class quality_control(object):
         fstat.write("Relative Translational Statistics>>\n")
         fstat.write("Max relative motion: %.4f\n" % max(trans_rel))
         fstat.write("Mean relative motion: %.4f\n" % np.mean(trans_rel))
+        fstat.write("Number of relative motions > 1mm: %d\n" %
+                    np.sum(trans_rel > 1))
+        fstat.write("Number of relative motions > 5mm: %d\n" %
+                    np.sum(trans_rel > 5))
         fstat.write("Mean relative x motion: %.4f\n" %
                     mean_abs[3])
         fstat.write("Std relative x motion: %.4f\n" %
@@ -455,7 +473,6 @@ class quality_control(object):
         fstat.write("Relative Rotational Statistics>>\n")
         fstat.write("Max relative rotation: %.4f\n" % max(rot_rel))
         fstat.write("Mean relative rotation: %.4f\n" % np.mean(rot_rel))
-        mean_rel = np.mean(rot_rel, axis=1)
         fstat.write("Mean relative x rotation: %.4f\n" %
                     mean_rel[0])
         fstat.write("Std relative x rotation: %.4f\n" %

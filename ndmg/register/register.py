@@ -201,29 +201,18 @@ class register(object):
         atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
 
         if (opt == 'f'):
-            mri_mc = outdir + "/tmp/" + mri_name + "_mc.nii.gz"
             s0 = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
             xfm_0tompr = outdir + "/tmp/" + mri_name + "_xfm_0tompr.mat"
             xfm_mprtotemp = outdir + "/tmp/" + mri_name + "_xfm_mprtotem.mat"
             xfm_comb = outdir + "/tmp/" + mri_name + "_xfm_comb.mat"
-            mri_res = outdir + "/tmp/" + mri_name + "_res.nii.gz"
-            qc_mc = outdir + "/qc/mc/"
             qc_reg = outdir + "/qc/reg/"
-
-            # align the fMRI volumes to the 0th volume in each stack
-            # EB TODO: figure out whether we want to align to the 0th vol
-            # or the mean vol in each stack
-            self.align_slices(mri, mri_mc, 0, 'f')
 
             sys.path.insert(0, '..')  # TODO EB: remove this before releasing
 
             import utils.utils as mgu
-            self.resample_fsl(mri_mc, mri_res, atlas)  # this doesn't work
             mgu().get_slice(mri_mc, 0, s0)  # get the 0 slice and save
             # mgu().get_slice(mri_mc, 0, s0)
             from qc.quality_control import quality_control as mgqc
-            mgqc().check_alignments(mri, mri_mc, s0, qc_mc, mri_name,
-                                    title="Motion Correction")
 
             # TODO EB: do we want to align the resampled image?
             self.align(s0, mprage, xfm_0tompr)

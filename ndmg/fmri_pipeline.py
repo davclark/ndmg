@@ -31,6 +31,7 @@ import ndmg.preproc as mgp
 import numpy as np
 import nibabel as nb
 from timeseries.timeseries import timeseries as mgts
+from qc.quality_control import quality_control as mgqc
 
 
 def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
@@ -44,9 +45,10 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
     # Create derivative output directories
     fmri_name = op.splitext(op.splitext(op.basename(fmri))[0])[0]
     cmd = "mkdir -p " + outdir + "/reg_fmri " + outdir +\
+        outdir + "/preproc_fmri " + outdir + "/motion_fmri " +\
         "/voxel_timeseries " + outdir + "/roi_timeseries " +\
         outdir + "/graphs " + outdir + "/qc " +\
-        outdir + "/qc/mc " + outdir + "/qc/reg"
+        outdir + "/qc/mc " + outdir + "/qc/reg" + outdir + "/qc/overall"
     p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
     p.communicate()
 
@@ -67,7 +69,9 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
                   stdout=PIPE, stderr=PIPE, shell=True)
 
     # Create derivative output file names
+    preproc_fmri = outdir + "/preproc_fmri/" + fmri_name + "_preproc.nii.gz"
     aligned_fmri = outdir + "/reg_fmri/" + fmri_name + "_aligned.nii.gz"
+    motion_fmri = outdir + "/motion_fmri/" + fmri_name + "_mc.nii.gz"
     voxel_ts = outdir + "/voxel_timeseries/" + fmri_name + "_voxel.npz"
 
     print "This pipeline will produce the following derivatives..."
@@ -83,8 +87,13 @@ def fmri_pipeline(fmri, mprage, atlas, mask, labels, outdir,
           (", ".join([x for x in roi_ts]))
 
     # Align fMRI volumes to Atlas
+    print "Preprocessing volumes..."
+    mgp().preprocess(fmri, preproc_fmri, motion_fmri, outdir)
+
     print "Aligning volumes..."
-    mgr().mri2atlas(fmri, mprage, atlas, aligned_fmri, outdir, 'f')
+    mgr().mri2atlas(preproc_fmri, mprage, atlas, aligned_fmri, outdir, 'f')
+    mgqc().stat_summary(aligned_fmri, fmri, motion_fmri, mask, fname=(outdir +
+                        "qc/overall/" + fmri_name))
 
     mgts().voxel_timeseries(aligned_fmri, mask, voxel_ts)
     for idx, label in enumerate(label_name):
