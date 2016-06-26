@@ -115,6 +115,30 @@ class utils():
         nb.save(out, sli)
         pass
 
+    def get_brain(self, brain_file):
+        """
+        Opens a brain data series for a mask, mri image, or atlas.
+        Returns a numpy.ndarray representation of a brain.
+
+        **Positional Arguements**
+            -brain_file: an object to open the data for a brain.
+                         Can be a string (path to a brain file),
+                         nibabel.nifti1.nifti1image, or a numpy.ndarray
+        """
+        if type(brain_file) is np.ndarray:  # if brain passed as matrix
+            braindata = brain_file
+        else:
+            if type(brain_file) is str:  # object is a path
+                brain = nb.load(brain_file)
+            elif type(brain_file) is nb.nifti1.Nifti1Image:
+                brain = brain_file
+            else:
+                raise TypeError("Mask file is of type " + type(brain_file) +
+                                "; accepted types are numpy.ndarray, " +
+                                "string, and nibabel.nifti1.Nifti1Image.")
+            braindata = brain.get_data()
+        return braindata
+
     def get_b0(self, gtab, data):
         """
         Takes bval and bvec files and produces a structure in dipy format

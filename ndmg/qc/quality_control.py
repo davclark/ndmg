@@ -17,6 +17,8 @@
 # Created by Eric W Bridgeford on 2016-06-08.
 # Email: ebridge2@jhu.edu
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from numpy import ndarray as nar
 import numpy as np
@@ -25,6 +27,8 @@ from subprocess import Popen, PIPE
 import nibabel as nb
 import sys
 import re
+import random as ran
+import scipy.stats.mstats as scim
 
 
 class quality_control(object):
@@ -79,14 +83,10 @@ class quality_control(object):
         would have very low accuracy (fMRI signal differences >>> actual
         differences we are looking for).
         """
-        imageA = imageA/np.mean(imageA)
-        imageB = imageB/np.mean(imageB)
         err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
-        err /= float(imageA.shape[0] * imageA.shape[1])
+        err /= (float(imageA.shape[0] * imageA.shape[1]))
 
-        # return the MSE, the lower the error, the more "similar"
-        # the two images are
-        return err
+        return float(err)
 
     def compute_kdes(self, before, after, steps=1000):
         """
@@ -97,8 +97,8 @@ class quality_control(object):
             - before: a numpy array before an operational step.
             - after: a numpy array after an operational step.
         """
-        x_min = min(min(before), min(after))
-        x_max = max(max(before), max(after))
+        x_min = min(np.nanmin(before), np.nanmin(after))
+        x_max = max(np.nanmax(before), np.nanmax(after))
         x_grid = np.linspace(x_min, x_max, steps)
         kdebef = gaussian_kde(before)
         kdeaft = gaussian_kde(after)
@@ -117,7 +117,7 @@ class quality_control(object):
                               np.sqrt(array2)) ** 2)) / np.sqrt(2)
 
     def check_alignments(self, mri_bname, mri_aname, refname, outdir,
-                         fname, title="", bin=False):
+                         fname, title="", pipedir="", bin=False):
         """
         A function for checking alignments between two data items.
         The function produces [numnvols] plots in the output
@@ -127,6 +127,7 @@ class quality_control(object):
         right shows the overlap between the mri scan and the reference
         after an operation has taken place. The title is the DICE
         overlap between the two images.
+
         An additional plot is produced to create a density estimate
         of the DICE scores for the entire subject before and after
         an operation has taken place. The title is the hellinger distance.
@@ -143,8 +144,11 @@ class quality_control(object):
                           to analyze alignment for (defaults to False)
         """
         print "Performing Quality Control for " + title + "..."
-        cmd = "mkdir -p " + outdir + "/" + fname + " " +\
-              outdir + "/" + fname + "/timecourse"
+        print "\tBefore " + title + ": " + mri_bname
+        print "\tAfter " + title + ": " + mri_aname
+        print "\tReference " + title + ": " + refname
+
+        cmd = "mkdir -p " + outdir + "/" + fname
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
 
@@ -153,68 +157,78 @@ class quality_control(object):
         mri_after = nb.load(mri_aname)
         reference = nb.load(refname)
 
+        if not all(x in mri_after.get_header().get_zooms()[:3] for x in
+                   mri_before.get_header().get_zooms()[:3]):
+            sys.path.insert(0, '..')
+            from register.register import register as mgr
+            mri_tname = pipedir + "/tmp/" + fname + "_res.nii.gz"
+            mgr().resample_fsl(mri_bname, mri_tname, refname)
+            mri_before = nb.load(mri_tname)
+
         # load the data contained for each image
         mri_bdata = mri_before.get_data()
         mri_adata = mri_after.get_data()
         refdata = reference.get_data()
 
-        timesteps = mri_bdata.shape[3]
-        slices = mri_bdata.shape[2]
+        nvols = mri_bdata.shape[3]
+        nslices = mri_bdata.shape[2]
 
-        # dice_file = outdir + "/" + fname + ".csv"
-        # csv = open(dice_file, 'w')
-        refslice = round(0.5 * slices)
-        slice_ref = refdata[:, :, refslice]
+        v_bef = []
+        v_aft = []
 
-        v_bef = np.zeros(timesteps)
-        v_aft = np.zeros(timesteps)
+        refdata = np.divide(refdata, np.mean(refdata) + 1)
 
-        for t in range(0, timesteps):
-            v_bef[t] = self.mse(mri_bdata[:, :, :, t], refdata[:, :, :])
-            v_aft[t] = self.mse(mri_adata[:, :, :, t], refdata[:, :, :])
-            # csv.write(str(v_bef) + "," + str(v_after) + "\n")
-            slice_before = mri_bdata[:, :, refslice, t]
-            # TODO EB:replace refslice and time sequence with mean
-            slice_after = mri_adata[:, :, refslice, t]
+        for t in range(0, nvols):
+            mribefdat = np.divide(mri_bdata[:, :, :, t],
+                                  np.mean(mri_bdata[:, :, :, t]) + 1)
+            mriaftdat = np.divide(mri_adata[:, :, :, t],
+                                  np.mean(mri_adata[:, :, :, t]) + 1)
+            for s in range(0, nslices):
+                v_bef.append(tuple((s + ran.random(),
+                                    self.mse(mribefdat[:, :, s],
+                                    refdata[:, :, s]))))
+                v_aft.append(tuple((s + ran.random(),
+                                    self.mse(mriaftdat[:, :, s],
+                                    refdata[:, :, s]))))
 
-            plt.subplot(1, 2, 1)
-            plt.imshow(slice_before, cmap='gray', interpolation='nearest')
-            plt.hold(True)
-            plt.imshow(slice_ref, cmap='winter', interpolation='nearest',
-                       alpha=0.3)
-            plt.title("Error = %.2E" % v_bef[t])
-            plt.xlabel('Position (mm)')
-            plt.ylabel('Position (mm)')
-            plt.subplot(1, 2, 2)
-            plt.imshow(slice_after, cmap='gray', interpolation='nearest')
-            plt.hold(True)
-            plt.imshow(slice_ref, cmap='winter', interpolation='nearest',
-                       alpha=0.3)
-            plt.title("Error = %.2E" % v_aft[t])
-            plt.xlabel('Position (mm)')
-            plt.ylabel('Position (mm)')
-            plt.yaxis.tick_right()
-            fnamets = outdir + "/" + fname + "/timecourse/"
-            fnamets = fnamets + fname + "_" + str(t) + "_ts"
-            plt.savefig(fnamets + ".png")
-            plt.clf()
-
-        kdes = self.compute_kdes(v_bef, v_aft)
+        kdes = self.compute_kdes(zip(*v_bef)[1], zip(*v_aft)[1])
         fkde = plt.figure()
         axkde = fkde.add_subplot(111)
         axkde.plot(kdes[0], kdes[1])
         axkde.plot(kdes[0], kdes[2])
         axkde.set_title(title + (" Hellinger Distance = %.4E" %
-                        self.hdist(kdes[0], kdes[1])))
+                        self.hdist(zip(*v_bef)[1], zip(*v_aft)[1])))
         axkde.set_xlabel('MSE')
+        xlim = tuple((0, np.nanmax(kdes[0])))
+        ylim = tuple((0, max(np.nanmax(kdes[1]), np.nanmax(kdes[2]))))
+        axkde.set_xlim(xlim)
+        axkde.set_ylim(ylim)
         axkde.set_ylabel('Density')
-        axkde.legend(['before, mean = %.2E' % np.mean(v_bef),
-                     'after, mean = %.2E' % np.mean(v_aft)])
-        fnamekde = outdir + "/" + fname + "_kde"
-        fkde.savefig(fnamekde + ".png")
+        axkde.legend(['before, mean = %.2E' % np.mean(zip(*v_bef)[1]),
+                     'after, mean = %.2E' % np.mean(zip(*v_aft)[1])])
+        fnamekde = outdir + "/" + fname + "/" + fname + "_kde.png"
+        fkde.savefig(fnamekde)
+
+        fjit = plt.figure()
+        axjit = fjit.add_subplot(111)
+        axjit.scatter(*zip(*v_bef), color='red', alpha=0.5, s=.5)
+        axjit.scatter(*zip(*v_aft), color='blue', alpha=0.5, s=.5)
+        axjit.set_title("Jitter Plot showing slicewise impact of " + title)
+        axjit.set_xlabel('Slice Number')
+        axjit.set_ylabel('MSE')
+        xlim = tuple((0, nslices + 1))
+        ylim = tuple((0, max(np.nanmax(zip(*v_bef)[1]),
+                             np.nanmax(zip(*v_aft)[1]))))
+        axjit.set_ylim(ylim)
+        axjit.set_xlim(xlim)
+        axjit.legend(['before, mean = %.2E' % np.mean(zip(*v_bef)[1]),
+                     'after, mean = %.2E' % np.mean(zip(*v_aft)[1])])
+        fnamejit = outdir + "/" + fname + "/" + fname + "_jitter.png"
+        fjit.savefig(fnamejit)
         pass
 
-    def stat_summary(self, mri, mri_raw, mri_mc, mask, title="", fname=""):
+    def stat_summary(self, mri, mri_raw, mri_mc, mask, voxel,
+                     aligned_mprage, atlas, title="", outdir="", mri_name=""):
         """
         A function for producing a stat summary page, along with
         an image of all the slices of this mri scan.
@@ -241,29 +255,37 @@ class quality_control(object):
         **Positional Arguments:**
             - mri: the path to a corrected mri scan to analyze
             - mri_raw: the path to an uncorrected mri scan to analyze
+            - mri_mc: the motion corrected mri scan.
+            - mask: the mask to calculate statistics over.
+            - voxel: a matrix for the voxel timeseries.
+            - aligned_mprage: the aligned MPRAGE image.
+            - atlas: the atlas for alignment.
             - title: the title for the file (ie, Registered, Resampled, etc)
             - fname: the name to give the file.
-            - tmpname: the name appended to any temporary files created.
         """
         print "Producing Quality Control Summary. \n" +\
             "\tRaw Image: " + mri_raw + "\n" +\
             "\tCorrected Image: " + mri + "\n" +\
-            "\tMask: " + mask + "\n"
+            " \tMask: " + mask + "\n"
+        cmd = "mkdir -p " + outdir + "/" + mri_name
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
+
         mri_im = nb.load(mri)
         mri_dat = mri_im.get_data()
         mri_raw_im = nb.load(mri_raw)
 
-        print "Opened MRI Images."
-        sys.path.insert(0, '..')  # TODO EB: remove this before releasing
-        from timeseries.timeseries import timeseries as mgtc
+        mprage_dat = nb.load(aligned_mprage).get_data()
+        at_dat = nb.load(atlas).get_data()
 
-        # get voxel timeseries for some computations
-        voxel = mgtc().voxel_timeseries(mri_dat, mask)
+        print "Opened MRI Images."
 
         # image for mean signal intensity over time
-        mri_datmean = np.mean(mri_dat, axis=3)
-        fmean = plt.figure()
-        mri_datstd = np.std(mri_dat, axis=3)
+        mri_datmean = np.nanmean(mri_dat, axis=3)
+        fmean_mni = plt.figure()
+        fmean_anat = plt.figure()
+
+        mri_datstd = np.nanstd(mri_dat, axis=3)
         fstd = plt.figure()
 
         # image for slice SNR = mean / stdev
@@ -271,54 +293,99 @@ class quality_control(object):
         fsnr = plt.figure()
 
         # image for slice-wise mean intensity
-        mri_datmi = np.squeeze(np.apply_over_axes(np.mean,
+        mri_datmi = np.squeeze(np.apply_over_axes(np.nanmean,
                                                   mri_dat, (0, 1)))
+        fanat_mni = plt.figure()
         fmi = plt.figure()
         axmi = fmi.add_subplot(111)
 
         depth = mri_dat.shape[2]
         nvols = mri_dat.shape[3]
 
-        nrows = np.ceil(np.sqrt(depth))
-        ncols = np.ceil(depth/nrows)
+        # max image size is 5x5. after that, reduce size to 5x5
+        # with sequences
+        depth_seq = np.unique(np.round(np.linspace(0, depth - 1, 25)))
+        nrows = np.ceil(np.sqrt(depth_seq.shape[0]))
+        ncols = np.ceil(depth_seq.shape[0]/nrows)
 
-        mri_dat = None  # done with this, so save memory
+        mri_dat = None  # done with this, so save memory here
+
         # produce figures for each slice in the image
-        for d in range(0, depth):
-            axmean = fmean.add_subplot(nrows, ncols, d+1)
-            axmean.imshow(mri_datmean[:, :, d], cmap='gray',
-                          interpolation='nearest')
-            axmean.set_xlabel('Position (res)')
-            axmean.set_ylabel('Position (res)')
-            axmean.set_title('%d slice' % d)
+        for d in range(0, depth_seq.shape[0]):
+            # TODO EB: create nifti image with these values
+            # and allow option to add overlap with mni vs mprage
+            i = depth_seq[d]
+            axmean_mni = fmean_mni.add_subplot(nrows, ncols, d+1)
+            axmean_mni.imshow(mri_datmean[:, :, i], cmap='gray',
+                              interpolation='nearest')
+            axmean_mni.imshow(at_dat[:, :, i], cmap='Greens',
+                              interpolation='nearest', alpha=0.3)
+            axmean_mni.set_xlabel('Position (res)')
+            axmean_mni.set_ylabel('Position (res)')
+            axmean_mni.set_title('%d slice' % i)
+
+            axmean_anat = fmean_anat.add_subplot(nrows, ncols, d+1)
+            axmean_anat.imshow(mri_datmean[:, :, i], cmap='gray',
+                               interpolation='nearest')
+            axmean_anat.imshow(mprage_dat[:, :, i], cmap='Greens',
+                               interpolation='nearest', alpha=0.3)
+            axmean_anat.set_xlabel('Position (res)')
+            axmean_anat.set_ylabel('Position (res)')
+            axmean_anat.set_title('%d slice' % i)
 
             axstd = fstd.add_subplot(nrows, ncols, d+1)
-            axstd.imshow(mri_datstd[:, :, d], cmap='gray',
+            axstd.imshow(mri_datstd[:, :, i], cmap='gray',
                          interpolation='nearest')
             axstd.set_xlabel('Position (res)')
             axstd.set_ylabel('Position (res)')
-            axstd.set_title('%d slice' % d)
+            axstd.set_title('%d slice' % i)
 
             axsnr = fsnr.add_subplot(nrows, ncols, d+1)
-            axsnr.imshow(mri_datsnr[:, :, d], cmap='gray',
+            axsnr.imshow(mri_datsnr[:, :, i], cmap='gray',
                          interpolation='nearest')
             axsnr.set_xlabel('Position (res)')
             axsnr.set_ylabel('Position (res)')
-            axsnr.set_title('%d slice' % d)
+            axsnr.set_title('%d slice' % i)
 
+            axanat_mni = fanat_mni.add_subplot(nrows, ncols, d+1)
+            axanat_mni.imshow(mprage_dat[:, :, i], cmap='gray',
+                              interpolation='nearest')
+            axanat_mni.set_xlabel('Position (res)')
+            axanat_mni.set_ylabel('Position (res)')
+            axanat_mni.set_title('%d slice' % i)
+            axanat_mni.imshow(at_dat[:, :, i], cmap='Greens',
+                              interpolation='nearest', alpha=0.3)
+
+        for d in range(0, depth):
             axmi.plot(mri_datmi[d, :])
 
+        fname = outdir + "/" + mri_name + "/" + mri_name
         axmi.set_xlabel('Timepoint')
         axmi.set_ylabel('Mean Intensity')
         axmi.set_title('Mean Slice Intensity')
         axmi.set_xlim((0, nvols))
-        fmean.set_size_inches(nrows*8, ncols*8)
-        fstd.set_size_inches(nrows*8, ncols*8)
-        fsnr.set_size_inches(nrows*8, ncols*8)
-        fmean.savefig(fname + "_mean.png")
+        fmean_mni.set_size_inches(nrows*6, ncols*6)
+        fmean_anat.set_size_inches(nrows*6, ncols*6)
+        fstd.set_size_inches(nrows*6, ncols*6)
+        fsnr.set_size_inches(nrows*6, ncols*6)
+        fanat_mni.set_size_inches(nrows*6, ncols*6)
+
+        fmean_mni.savefig(fname + "_mean_mni.png")
+        fmean_anat.savefig(fname + "_mean_anat.png")
         fstd.savefig(fname + "_std.png")
         fsnr.savefig(fname + "_snr.png")
         fmi.savefig(fname + "_slice_intens.png")
+        fanat_mni.savefig(fname + "_anat_mni.png")
+
+        fvoxel_intens_hist = plt.figure()
+        axvih = fvoxel_intens_hist.add_subplot(111)
+        hist, bins = np.histogram(voxel, bins=5000)
+        width = 0.7 * (bins[1] - bins[0])
+        center = (bins[:-1] + bins[1:]) / 2
+        axvih.bar(center, hist, align='center', width=width)
+        axvih.set_xlabel('Voxel Intensity')
+        axvih.set_ylabel('Number of Voxels')
+        fvoxel_intens_hist.savefig(fname + "_hist.png")
 
         par_file = mri_mc + ".par"
 

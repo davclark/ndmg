@@ -26,6 +26,7 @@ import nibabel as nb
 import numpy as np
 import nilearn.image as nl
 import sys  # remove this before releasing; only here so we can get new utils
+import dipy.align.reslice as dr
 
 
 class register(object):
@@ -60,6 +61,24 @@ class register(object):
         p.communicate()
         pass
 
+    def align_nonlinear(self, inp, ref, affxfm, warp):
+        """
+        Aligns two images using nonlinear methods and stores the
+        transform between them.
+
+        **Positional Arguments:**
+            - inp: the input image.
+            - ref: the reference image.
+            - affxfm: the affine transform to use.
+            - warp: the path to store the nonlinear warp.
+        """
+        cmd = "fnirt --in=" + inp + " --aff=" + affxfm + " --cout=" +\
+              warp + " --ref=" + ref
+        print "Executing: " + cmd
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
+        pass
+
     def applyxfm(self, inp, ref, xfm, aligned):
         """
         Aligns two images with a given transform
@@ -83,6 +102,41 @@ class register(object):
         p.communicate()
         pass
 
+    def apply_warp(self, inp, out, ref, warp, premat):
+        """
+        Applies a warp from the functional to reference space
+        in a single step, using information about the structural->ref
+        mapping as well as the functional to structural mapping.
+
+        **Positional Arguments:**
+            inp: the input image to be aligned as a nifti image file.
+            out: the output aligned image.
+            ref: the image being aligned to.
+            warp: the warp from the structural to reference space.
+            premat: the affine transformation from functional to
+                structural space.
+        """
+        cmd = "applywarp --ref=" + ref + " --in=" + inp + " --out=" + out +\
+              " --coef=" + warp + " --premat=" + premat
+        print "Executing: " + cmd
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
+        pass
+
+    def extract_brain(self, inp, out):
+        """
+        A function to extract the brain from an image using FSL's BET.
+
+        **Positional Arguments:**
+            inp: the input image.
+            out: the output brain extracted image.
+        """
+        cmd = "bet " + inp + " " + out
+        print "Executing: " + cmd
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
+        pass
+
     def align_slices(self, mri, corrected_mri, idx, opt):
         """
         Performs eddy-correction (or self-alignment) of a stack of 3D images
@@ -99,17 +153,10 @@ class register(object):
                     - 'f': for fMRI
                     - 'd': for DTI
         """
-        if (opt == 'f'):
-            cmd = "mcflirt -in " + mri + " -out " + corrected_mri +\
-                " -plots -refvol " + str(idx)
-            print "Executing: " + cmd
-            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-            p.communicate()
-        else:
-            cmd = "eddy_correct " + mri + " " + corrected_mri + " " + str(idx)
-            print "Executing: " + cmd
-            p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-            p.communicate()
+        cmd = "eddy_correct " + mri + " " + corrected_mri + " " + str(idx)
+        print "Executing: " + cmd
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
         pass
 
     def resample(self, base, ingested, template):
@@ -139,16 +186,39 @@ class register(object):
         nb.save(target_im, ingested)
         pass
 
-    def resample_fsl(self, base, res, template):
+    def resample_ant(self, base, res, template):
         """
-        A function to resample a base image in fsl to that of a template.
+        A function to resample a base image to that of a template image
+        using dipy.
+        NOTE: Dipy is far superior for antisotropic -> isotropic
+            resampling.
 
         **Positional Arguments:**
             - base: the path to the base image to resample.
             - res: the filename after resampling.
             - template: the template image to align to.
         """
-        goal_res = int(nb.load(template).header["pixdim"][1])
+        print "Resampling..."
+        baseimg = nb.load(base)
+        tempimg = nb.load(template)
+        data2, affine2 = dr.reslice(baseimg.get_data(),
+                                    baseimg.get_affine(),
+                                    baseimg.get_header().get_zooms()[:3],
+                                    tempimg.get_header().get_zooms()[:3])
+        img2 = nb.Nifti1Image(data2, affine2)
+        print "Saving resampled image..."
+        nb.save(img2, res)
+        pass
+
+    def resample_fsl(self, base, res, template):
+        """
+        A function to resample a base image in fsl to that of a template.
+        **Positional Arguments:**
+            - base: the path to the base image to resample.
+            - res: the filename after resampling.
+            - template: the template image to align to.
+        """
+        goal_res = int(nb.load(template).get_header().get_zooms()[0])
         cmd = "flirt -in " + base + " -ref " + template + " -out " +\
               res + " -nosearch -applyisoxfm " + str(goal_res)
         print "Executing: " + cmd
@@ -170,8 +240,8 @@ class register(object):
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
 
-    def mri2atlas(self, mri, mprage, atlas, aligned_mri, outdir, opt,
-                  **kwargs):
+    def mri2atlas(self, mri, mprage, atlas, atlas_brain, aligned_mri,
+                  aligned_mprage, outdir, opt, **kwargs):
         """
         Aligns two images and stores the transform between them
 
@@ -202,27 +272,38 @@ class register(object):
 
         if (opt == 'f'):
             s0 = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
-            xfm_0tompr = outdir + "/tmp/" + mri_name + "_xfm_0tompr.mat"
-            xfm_mprtotemp = outdir + "/tmp/" + mri_name + "_xfm_mprtotem.mat"
+            xfm_func2mpr = outdir + "/tmp/" + mri_name + "_xfm_func2mpr.mat"
+            xfm_mpr2temp = outdir + "/tmp/" + mri_name + "_xfm_mpr2temp.mat"
             xfm_comb = outdir + "/tmp/" + mri_name + "_xfm_comb.mat"
             qc_reg = outdir + "/qc/reg/"
+            mprage_bet = outdir + "/tmp/" + mprage_name + "_bet.nii.gz"
+            warp_mpr2temp = outdir + "/tmp/" + mri_name + "_warp_mpr2temp.mat"
 
             sys.path.insert(0, '..')  # TODO EB: remove this before releasing
 
+            # self.resample_ant(mri, mri_res, atlas)
             import utils.utils as mgu
-            mgu().get_slice(mri_mc, 0, s0)  # get the 0 slice and save
-            # mgu().get_slice(mri_mc, 0, s0)
+            mgu().get_slice(mri, 0, s0)  # get the 0 slice and save
             from qc.quality_control import quality_control as mgqc
 
             # TODO EB: do we want to align the resampled image?
-            self.align(s0, mprage, xfm_0tompr)
-            self.align(mprage, atlas, xfm_mprtotemp)
-            self.combine_xfms(xfm_mprtotemp, xfm_0tompr, xfm_comb)
+            # self.align(s0, mprage, xfm_func2mpr)
+            # self.extract_brain(mprage, mprage_bet)
+            # self.align(mprage_bet, atlas_brain, xfm_mpr2temp)
+            # self.align_nonlinear(mprage_bet, atlas, xfm_mpr2temp,
+            #                     warp_mpr2temp)
+            # self.apply_warp(mri, aligned_mri, atlas, warp_mpr2temp,
+            #                xfm_func2mpr)
 
-            self.applyxfm(mri_mc, atlas, xfm_comb, aligned_mri)
-            # self.applyxfm(mri_mc, atlas, xfm_comb, aligned_mri)
-            mgqc().check_alignments(mri_res, aligned_mri, atlas, qc_reg,
-                                    mri_name, title="Registration")
+            self.align(s0, mprage, xfm_func2mpr)
+            self.align(mprage, atlas, xfm_mpr2temp)
+            self.combine_xfms(xfm_mpr2temp, xfm_func2mpr, xfm_comb)
+
+            self.applyxfm(mri, atlas, xfm_comb, aligned_mri)
+            self.applyxfm(mprage, atlas, xfm_mpr2temp, aligned_mprage)
+            mgqc().check_alignments(mri, aligned_mri, atlas, qc_reg,
+                                    mri_name, title="Registration",
+                                    pipedir=outdir)
 
         else:
             gtab = kwargs['gtab']
@@ -238,7 +319,7 @@ class register(object):
             xfm3 = outdir + "/tmp/" + mri_name + "_" + atlas_name + "_xfm.mat"
 
             # Align DTI volumes to each other
-            self.align_slices(mri, mri2, np.where(gtab.b0s_mask)[0], 'd')
+            self.align_slices(mri, mri2, np.where(gtab.b0s_mask)[0])
 
             # Loads DTI image in as data and extracts B0 volume
             import ndmg.utils as mgu

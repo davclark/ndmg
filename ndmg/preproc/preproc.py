@@ -23,6 +23,7 @@ from subprocess import Popen, PIPE
 import numpy as np
 import nibabel as nb
 import sys
+import os.path as op
 
 
 class preproc(object):
@@ -72,8 +73,8 @@ class preproc(object):
         import utils.utils as mgu
         mgu().get_slice(motion_mri, 0, s0)
         from qc.quality_control import quality_control as mgqc
-        mgqc.check_alignments(mri, motion_mri, s0, qc_mc, mri_name,
-                              title="Motion Correction")
+        mgqc().check_alignments(mri, motion_mri, s0, qc_mc, mri_name,
+                                title="Motion Correction")
 
         cmd = "cp " + motion_mri + " " + preproc_mri
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)

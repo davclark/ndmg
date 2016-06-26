@@ -20,6 +20,7 @@
 
 import numpy as np
 import nibabel as nb
+import sys
 
 
 class timeseries():
@@ -29,30 +30,6 @@ class timeseries():
         Timeseries extraction class
         """
         pass
-
-    def get_brain(self, brain_file):
-        """
-        Opens a brain data series for a mask, mri image, or atlas.
-        Returns a numpy.ndarray representation of a brain.
-
-        **Positional Arguements**
-            -brain_file: an object to open the data for a brain.
-                         Can be a string (path to a brain file),
-                         nibabel.nifti1.nifti1image, or a numpy.ndarray
-        """
-        if type(brain_file) is np.ndarray:  # if brain passed as matrix
-            braindata = brain_file
-        else:
-            if type(brain_file) is str:  # object is a path
-                brain = nb.load(brain_file)
-            elif type(brain_file) is nb.nifti1.Nifti1Image:
-                brain = brain_file
-            else:
-                raise TypeError("Mask file is of type " + type(brain_file) +
-                                "; accepted types are numpy.ndarray, " +
-                                "string, and nibabel.nifti1.Nifti1Image.")
-            braindata = brain.get_data()
-        return braindata
 
     def voxel_timeseries(self, fmri_file, mask_file, voxel_file=""):
         """
@@ -72,11 +49,13 @@ class timeseries():
         print "Extracting Voxel Timeseries..."
 
         # load the mask data
-        maskdata = self.get_brain(mask_file)
+        sys.path.insert(0, '..')
+        from utils.utils import utils as mgu
+        maskdata = mgu().get_brain(mask_file)
         maskbool = (maskdata > 0)  # extract timeseries for any labelled voxels
 
         # load the MRI data
-        fmridata = self.get_brain(fmri_file)
+        fmridata = mgu().get_brain(fmri_file)
         voxel_ts = fmridata[maskbool, :]
         if voxel_file:
             np.savez(voxel_file, voxel_ts)
@@ -94,11 +73,13 @@ class timeseries():
                     for the voxels in the fmri image
             - roits_file: the path to where the roi timeseries will be saved
         """
-        labeldata = self.get_brain(label_file)
+        sys.path.insert(0, '..')
+        from utils.utils import utils as mgu
+        labeldata = mgu().get_brain(label_file)
 
         rois = np.sort(np.unique(labeldata[labeldata > 0]))
 
-        fmridata = self.get_brain(fmri_file)
+        fmridata = mgu().get_brain(fmri_file)
 
         # initialize so resulting ra is [numrois]x[numtimepoints]
         roi_ts = np.zeros((rois.shape[0], fmridata.shape[3]))

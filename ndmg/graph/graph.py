@@ -96,6 +96,7 @@ class graph(object):
         roilist = np.unique(self.rois)
         roilist = roilist[roilist != 0]
         roilist = np.sort(roilist)
+
         for (idx_out, roi_out) in enumerate(roilist):
             for (idx_in, roi_in) in enumerate(roilist):
                 self.edge_dict[tuple((roi_out, roi_in))] = cor[idx_out, idx_in]
