@@ -25,6 +25,7 @@ from dipy.io import read_bvals_bvecs, read_bvec_file
 from dipy.core.gradients import gradient_table
 import numpy as np
 import nibabel as nb
+from subprocess import Popen, PIPE
 
 
 class utils():
@@ -138,6 +139,37 @@ class utils():
                                 "string, and nibabel.nifti1.Nifti1Image.")
             braindata = brain.get_data()
         return braindata
+
+    def apply_mask(self, inp, masked, mask):
+        """
+        A function to apply a mask to a brain.
+
+        **Positional Arguments:**
+            inp: the input path to an mri image.
+            masked: the output path to the masked image.
+            mask: the path to a brain mask.
+        """
+        cmd = "fslmaths " + inp + " -mas " + mask + " " + masked
+        print "Executing: " + cmd
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
+        pass
+
+    def extract_brain(self, inp, out, opts=""):
+        """
+        A function to extract the brain from an image using FSL's BET.
+
+        **Positional Arguments:**
+            inp: the input image.
+            out: the output brain extracted image.
+        """
+        cmd = "bet " + inp + " " + out
+        if opts is not None:
+            cmd = cmd + " " + str(opts)
+        print "Executing: " + cmd
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
+        pass
 
     def get_b0(self, gtab, data):
         """

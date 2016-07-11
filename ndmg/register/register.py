@@ -40,7 +40,8 @@ class register(object):
         """
         pass
 
-    def align(self, inp, ref, xfm):
+    def align(self, inp, ref, xfm=None, out=None, dof=12, searchrad=True,
+              interp="trilinear"):
         """
         Aligns two images and stores the transform between them
 
@@ -53,9 +54,16 @@ class register(object):
                 xfm:
                     - Returned transform between two images
         """
-        cmd = "flirt -in " + inp + " -ref " + ref + " -omat " + xfm +\
-              " -cost mutualinfo -bins 256 -dof 12 -searchrx -180 180" +\
-              " -searchry -180 180 -searchrz -180 180"
+        cmd = "flirt -in " + inp + " -ref " + ref + " -interp " + str(interp)
+        if xfm is not None:
+            cmd += " -omat " + xfm
+        if out is not None:
+            cmd += " -out " + out
+        if type(dof) is int:
+            cmd += " -dof " + str(dof)
+        if searchrad:
+            cmd += " -searchrx -180 180 -searchry -180 180 " +\
+                   "-searchrz -180 180"
         print "Executing: " + cmd
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
@@ -117,21 +125,7 @@ class register(object):
                 structural space.
         """
         cmd = "applywarp --ref=" + ref + " --in=" + inp + " --out=" + out +\
-              " --coef=" + warp + " --premat=" + premat
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
-        pass
-
-    def extract_brain(self, inp, out):
-        """
-        A function to extract the brain from an image using FSL's BET.
-
-        **Positional Arguments:**
-            inp: the input image.
-            out: the output brain extracted image.
-        """
-        cmd = "bet " + inp + " " + out
+              " --warp=" + warp + " --premat=" + premat
         print "Executing: " + cmd
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
@@ -240,8 +234,8 @@ class register(object):
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
 
-    def mri2atlas(self, mri, mprage, atlas, atlas_brain, aligned_mri,
-                  aligned_mprage, outdir, opt, **kwargs):
+    def mri2atlas(self, mri, mprage, atlas, aligned_mri,
+                  aligned_mprage, outdir, opt, qcdir="", **kwargs):
         """
         Aligns two images and stores the transform between them
 
@@ -271,39 +265,54 @@ class register(object):
         atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
 
         if (opt == 'f'):
+            atlas_brain = kwargs["atlas_brain"]
+            mprage_brain = kwargs["mprage_brain"]
+            mri_brain = kwargs["mri_brain"]
             s0 = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
+            s0_brain = outdir + "/tmp/" + mri_name + "_0slice_brain.nii.gz"
+            s0_mask = outdir + "/tmp/" + mri_name + "_0slice_brain_mask.nii.gz"
             xfm_func2mpr = outdir + "/tmp/" + mri_name + "_xfm_func2mpr.mat"
             xfm_mpr2temp = outdir + "/tmp/" + mri_name + "_xfm_mpr2temp.mat"
             xfm_comb = outdir + "/tmp/" + mri_name + "_xfm_comb.mat"
-            qc_reg = outdir + "/qc/reg/"
             mprage_bet = outdir + "/tmp/" + mprage_name + "_bet.nii.gz"
-            warp_mpr2temp = outdir + "/tmp/" + mri_name + "_warp_mpr2temp.mat"
+            # warp_mpr2temp = outdir +"/tmp/"+mri_name +"_warp_mpr2temp.nii.gz"
+            mri_bet = outdir + "/tmp/" + mri_name + "_bet.nii.gz"
 
             sys.path.insert(0, '..')  # TODO EB: remove this before releasing
 
             # self.resample_ant(mri, mri_res, atlas)
             import utils.utils as mgu
             mgu().get_slice(mri, 0, s0)  # get the 0 slice and save
-            from qc.quality_control import quality_control as mgqc
-
             # TODO EB: do we want to align the resampled image?
-            # self.align(s0, mprage, xfm_func2mpr)
             # self.extract_brain(mprage, mprage_bet)
-            # self.align(mprage_bet, atlas_brain, xfm_mpr2temp)
-            # self.align_nonlinear(mprage_bet, atlas, xfm_mpr2temp,
-            #                     warp_mpr2temp)
-            # self.apply_warp(mri, aligned_mri, atlas, warp_mpr2temp,
-            #                xfm_func2mpr)
 
-            self.align(s0, mprage, xfm_func2mpr)
+            # self.align(mri_bet, mprage_bet, xfm_func2mpr, dof=6, bins=False,
+            #           searchrad=False)
+            # self.align(mprage_bet, atlas_brain, xfm_mpr2temp, dof=False,
+            #           searchrad=False, bins=False)
+            # self.align_nonlinear(mprage_bet, atlas_brain, xfm_mpr2temp,
+            #                     warp_mpr2temp)
+            # self.apply_warp(mri_bet, aligned_mri, atlas_brain, warp_mpr2temp,
+            #                xfm_func2mpr)
+            # self.apply_warp(mprage, aligned_mprage, atlas, warp_mpr2temp,
+            #                xfm_mpr2temp)
+
+            # get a brain mask for the s0 slice and extract the brain
+            mgu().extract_brain(s0, s0_brain, opts="-m")
+            mgu().extract_brain(mprage, mprage_bet)
+            self.align(s0_brain, mprage_bet, xfm_func2mpr)
             self.align(mprage, atlas, xfm_mpr2temp)
             self.combine_xfms(xfm_mpr2temp, xfm_func2mpr, xfm_comb)
 
             self.applyxfm(mri, atlas, xfm_comb, aligned_mri)
             self.applyxfm(mprage, atlas, xfm_mpr2temp, aligned_mprage)
-            mgqc().check_alignments(mri, aligned_mri, atlas, qc_reg,
-                                    mri_name, title="Registration",
-                                    pipedir=outdir)
+
+            # mgu().apply_mask(aligned_mri, mri_brain, s0_mask)
+            mgu().extract_brain(aligned_mprage, mprage_brain)
+            if qcdir is not None:
+                from qc.quality_control import quality_control as mgqc
+                mgqc().check_alignments(mri, aligned_mri, atlas, qcdir,
+                                        mri_name, title="Registration")
 
         else:
             gtab = kwargs['gtab']

@@ -61,7 +61,8 @@ class timeseries():
             np.savez(voxel_file, voxel_ts)
         return voxel_ts
 
-    def roi_timeseries(self, fmri_file, label_file, roits_file=""):
+    def roi_timeseries(self, fmri_file, label_file, roits_file="", qcdir="",
+                       scanid="", refid=""):
         """
         Function to extract average timeseries for the voxels in each
         roi of the labelled atlas.
@@ -91,6 +92,11 @@ class timeseries():
             roi_voxelwisets = fmridata[roibool, :]
 
             roi_ts[roi_idx, :] = np.mean(roi_voxelwisets, axis=0)
+
+        if qcdir is not None:
+            from qc.quality_control import quality_control as mgqc
+            mgqc().image_align(fmridata, labeldata, qcdir + "/" + scanid,
+                               scanid=scanid, refid=refid)
 
         if roits_file:
             np.savez(roits_file, roi_ts)

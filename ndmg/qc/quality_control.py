@@ -116,8 +116,8 @@ class quality_control(object):
         return np.sqrt(np.sum((np.sqrt(array1) -
                               np.sqrt(array2)) ** 2)) / np.sqrt(2)
 
-    def check_alignments(self, mri_bname, mri_aname, refname, outdir,
-                         fname, title="", pipedir="", bin=False):
+    def check_alignments(self, mri_bname, mri_aname, refname, qcdir,
+                         fname, title=""):
         """
         A function for checking alignments between two data items.
         The function produces [numnvols] plots in the output
@@ -136,7 +136,7 @@ class quality_control(object):
             - mri_bname: the 4d mri file before an operation has taken place
             - mri_aname: the 4d mri file after an operation has taken place
             - refname: the 3d file used as a reference for the operation
-            - outdir: the output directory for the plots
+            - qcdir: the output directory for the plots
             - title: a string (such as the operation name) for use in the plot
                      titles (defaults to "")
             - fname: a string to use in the file handle for easy finding
@@ -148,7 +148,7 @@ class quality_control(object):
         print "\tAfter " + title + ": " + mri_aname
         print "\tReference " + title + ": " + refname
 
-        cmd = "mkdir -p " + outdir + "/" + fname
+        cmd = "mkdir -p " + qcdir
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
 
@@ -161,7 +161,7 @@ class quality_control(object):
                    mri_before.get_header().get_zooms()[:3]):
             sys.path.insert(0, '..')
             from register.register import register as mgr
-            mri_tname = pipedir + "/tmp/" + fname + "_res.nii.gz"
+            mri_tname = qcdir + "/" + fname + "_res.nii.gz"
             mgr().resample_fsl(mri_bname, mri_tname, refname)
             mri_before = nb.load(mri_tname)
 
@@ -206,7 +206,7 @@ class quality_control(object):
         axkde.set_ylabel('Density')
         axkde.legend(['before, mean = %.2E' % np.mean(zip(*v_bef)[1]),
                      'after, mean = %.2E' % np.mean(zip(*v_aft)[1])])
-        fnamekde = outdir + "/" + fname + "/" + fname + "_kde.png"
+        fnamekde = qcdir + "/" + fname + "_kde.png"
         fkde.savefig(fnamekde)
 
         fjit = plt.figure()
@@ -223,12 +223,67 @@ class quality_control(object):
         axjit.set_xlim(xlim)
         axjit.legend(['before, mean = %.2E' % np.mean(zip(*v_bef)[1]),
                      'after, mean = %.2E' % np.mean(zip(*v_aft)[1])])
-        fnamejit = outdir + "/" + fname + "/" + fname + "_jitter.png"
+        fnamejit = qcdir + "/" + fname + "_jitter.png"
         fjit.savefig(fnamejit)
         pass
 
+    def image_align(self, mri_data, ref_data, qcdir, scanid="", refid=""):
+        """
+        A function to produce an image showing the alignments of two
+        reference images.
+
+        **Positional Arguments:**
+            mri_image: the first matrix.
+            ref_image: the reference matrix.
+            qcdir: the path to a directory to dump the outputs.
+        """
+        np.save('test1.npy', mri_data)
+        np.save('test2.npy', ref_data)
+        cmd = "mkdir -p " + qcdir
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        p.communicate()
+
+        sys.path.insert(0, '..')
+        from utils.utils import utils as mgu
+        mri_data = mgu().get_brain(mri_data)
+        ref_data = mgu().get_brain(ref_data)
+
+        # if we have 4d data, np.mean() to get 3d data
+        if len(mri_data.shape) == 4:
+            mri_data = np.nanmean(mri_data, axis=3)
+
+        falign = plt.figure()
+
+        depth = mri_data.shape[2]
+
+        depth_seq = np.unique(np.round(np.linspace(0, depth - 1, 25)))
+        nrows = np.ceil(np.sqrt(depth_seq.shape[0]))
+        ncols = np.ceil(depth_seq.shape[0]/nrows)
+
+        # mri_data = np.nanmean(mri_data, axis=3)
+        refmask = (ref_data > 0).astype(int)
+
+        # produce figures for each slice in the image
+        for d in range(0, depth_seq.shape[0]):
+            # TODO EB: create nifti image with these values
+            # and allow option to add overlap with mni vs mprage
+            i = depth_seq[d]
+            axalign = falign.add_subplot(nrows, ncols, d+1)
+            axalign.imshow(mri_data[:, :, i], cmap='gray',
+                           interpolation='nearest', vmin=0,
+                           vmax=np.max(mri_data))
+            axalign.imshow(refmask[:, :, i], cmap='Greens',
+                           interpolation='nearest',  alpha=0.3)
+            axalign.set_xlabel('Position (res)')
+            axalign.set_ylabel('Position (res)')
+            axalign.set_title('%d slice' % i)
+
+        falign.set_size_inches(nrows*6, ncols*6)
+        falign.savefig(qcdir + "/" + scanid + "_" + refid + "_overlap.png")
+
     def stat_summary(self, mri, mri_raw, mri_mc, mask, voxel,
-                     aligned_mprage, atlas, title="", outdir="", mri_name=""):
+                     aligned_mprage, atlas, title="", qcdir="",
+                     scanid=""):
         """
         A function for producing a stat summary page, along with
         an image of all the slices of this mri scan.
@@ -267,7 +322,7 @@ class quality_control(object):
             "\tRaw Image: " + mri_raw + "\n" +\
             "\tCorrected Image: " + mri + "\n" +\
             " \tMask: " + mask + "\n"
-        cmd = "mkdir -p " + outdir + "/" + mri_name
+        cmd = "mkdir -p " + qcdir
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
 
@@ -317,49 +372,57 @@ class quality_control(object):
             i = depth_seq[d]
             axmean_mni = fmean_mni.add_subplot(nrows, ncols, d+1)
             axmean_mni.imshow(mri_datmean[:, :, i], cmap='gray',
-                              interpolation='nearest')
+                              interpolation='nearest', vmin=0,
+                              vmax=np.max(mri_datmean))
             axmean_mni.imshow(at_dat[:, :, i], cmap='Greens',
-                              interpolation='nearest', alpha=0.3)
+                              interpolation='nearest', alpha=0.3, vmin=0,
+                              vmax=np.max(at_dat))
             axmean_mni.set_xlabel('Position (res)')
             axmean_mni.set_ylabel('Position (res)')
             axmean_mni.set_title('%d slice' % i)
 
             axmean_anat = fmean_anat.add_subplot(nrows, ncols, d+1)
             axmean_anat.imshow(mri_datmean[:, :, i], cmap='gray',
-                               interpolation='nearest')
+                               interpolation='nearest', vmin=0,
+                               vmax=np.max(mri_datmean))
             axmean_anat.imshow(mprage_dat[:, :, i], cmap='Greens',
-                               interpolation='nearest', alpha=0.3)
+                               interpolation='nearest', alpha=0.3, vmin=0,
+                               vmax=np.max(mprage_dat))
             axmean_anat.set_xlabel('Position (res)')
             axmean_anat.set_ylabel('Position (res)')
             axmean_anat.set_title('%d slice' % i)
 
             axstd = fstd.add_subplot(nrows, ncols, d+1)
             axstd.imshow(mri_datstd[:, :, i], cmap='gray',
-                         interpolation='nearest')
+                         interpolation='nearest', vmin=0,
+                         vmax=np.max(mri_datstd))
             axstd.set_xlabel('Position (res)')
             axstd.set_ylabel('Position (res)')
             axstd.set_title('%d slice' % i)
 
             axsnr = fsnr.add_subplot(nrows, ncols, d+1)
             axsnr.imshow(mri_datsnr[:, :, i], cmap='gray',
-                         interpolation='nearest')
+                         interpolation='nearest', vmin=0,
+                         vmax=np.max(mri_datsnr))
             axsnr.set_xlabel('Position (res)')
             axsnr.set_ylabel('Position (res)')
             axsnr.set_title('%d slice' % i)
 
             axanat_mni = fanat_mni.add_subplot(nrows, ncols, d+1)
             axanat_mni.imshow(mprage_dat[:, :, i], cmap='gray',
-                              interpolation='nearest')
+                              interpolation='nearest', vmin=0,
+                              vmax=np.max(mprage_dat))
             axanat_mni.set_xlabel('Position (res)')
             axanat_mni.set_ylabel('Position (res)')
             axanat_mni.set_title('%d slice' % i)
             axanat_mni.imshow(at_dat[:, :, i], cmap='Greens',
-                              interpolation='nearest', alpha=0.3)
+                              interpolation='nearest', alpha=0.3, vmin=0,
+                              vmax=np.max(at_dat))
 
         for d in range(0, depth):
             axmi.plot(mri_datmi[d, :])
 
-        fname = outdir + "/" + mri_name + "/" + mri_name
+        fname = qcdir + "/" + scanid
         axmi.set_xlabel('Timepoint')
         axmi.set_ylabel('Mean Intensity')
         axmi.set_title('Mean Slice Intensity')

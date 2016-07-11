@@ -49,7 +49,8 @@ class preproc(object):
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
 
-    def preprocess(self, mri, preproc_mri, motion_mri, outdir):
+    def preprocess(self, mri, preproc_mri, motion_mri, outdir, qcdir="",
+                   scanid=""):
         """
         A function to preprocess a stack of 3D images.
 
@@ -63,7 +64,6 @@ class preproc(object):
         mri_name = op.splitext(op.splitext(op.basename(mri))[0])[0]
 
         s0 = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
-        qc_mc = outdir + "/qc/mc/"
 
         # TODO EB: decide whether it is advantageous to align to mean image
         self.motion_correct(mri, motion_mri, 0)
@@ -71,10 +71,11 @@ class preproc(object):
         sys.path.insert(0, '..')  # TODO EB: remove this before releasing
 
         import utils.utils as mgu
-        mgu().get_slice(motion_mri, 0, s0)
-        from qc.quality_control import quality_control as mgqc
-        mgqc().check_alignments(mri, motion_mri, s0, qc_mc, mri_name,
-                                title="Motion Correction")
+        if qcdir is not None:
+            mgu().get_slice(motion_mri, 0, s0)
+            from qc.quality_control import quality_control as mgqc
+            mgqc().check_alignments(mri, motion_mri, s0, qcdir, mri_name,
+                                    title="Motion Correction")
 
         cmd = "cp " + motion_mri + " " + preproc_mri
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)

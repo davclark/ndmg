@@ -40,17 +40,21 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
     Creates a brain graph from MRI data
     """
     startTime = datetime.now()
-    print fmt
 
     # Create derivative output directories
     fmri_name = op.splitext(op.splitext(op.basename(fmri))[0])[0]
     mprage_name = op.splitext(op.splitext(op.basename(mprage))[0])[0]
+    qcdir = outdir + "/qc"
+    mcdir = qcdir + "/mc"
+    regdir = qcdir + "/reg"
+    overalldir = qcdir + "/overall"
+    roidir = qcdir + "/roi"
     cmd = "mkdir -p " + outdir + "/reg_fmri " + outdir +\
         "/preproc_fmri " + outdir + "/motion_fmri " + outdir +\
         "/voxel_timeseries " + outdir + "/roi_timeseries " +\
         outdir + "/reg_mprage " +\
-        outdir + "/graphs " + outdir + "/qc " +\
-        outdir + "/qc/mc " + outdir + "/qc/reg " + outdir + "/qc/overall"
+        outdir + "/graphs " + qcdir + " " +\
+        mcdir + " " + regdir + " " + overalldir + " " + roidir
     p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
     p.communicate()
 
@@ -76,6 +80,9 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
     aligned_mprage = outdir + "/reg_mprage/" + mprage_name + "_aligned.nii.gz"
     motion_fmri = outdir + "/motion_fmri/" + fmri_name + "_mc.nii.gz"
     voxel_ts = outdir + "/voxel_timeseries/" + fmri_name + "_voxel.npz"
+    mprage_brain = outdir + "/reg_mprage/" + mprage_name +\
+        "_aligned_brain.nii.gz"
+    mri_brain = outdir + "/reg_fmri/" + fmri_name + "_aligned_brain.nii.gz"
 
     print "This pipeline will produce the following derivatives..."
     print "fMRI volumes preprocessed: " + preproc_fmri
@@ -93,30 +100,27 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
 
     # Align fMRI volumes to Atlas
     print "Preprocessing volumes..."
-    mgp().preprocess(fmri, preproc_fmri, motion_fmri, outdir)
-
-    # resample the atlas and the mask to the fmri resolution
-    # print "Resampling..."
-    # atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
-    # mask_name = op.splitext(op.splitext(op.basename(mask))[0])[0]
-    # atlas_res = outdir + "/tmp/" + atlas_name + "_res.nii.gz"
-    # mask_res = outdir + "/tmp/" + mask_name + "_res.nii.gz"
-    # mgr().resample_ant(atlas, atlas_res, fmri)
-    # mgr().resample_ant(mask, mask_res, fmri)
+    mgp().preprocess(fmri, preproc_fmri, motion_fmri, outdir, qcdir=mcdir +
+                     "/" + fmri_name)
 
     print "Aligning volumes..."
-    mgr().mri2atlas(preproc_fmri, mprage, atlas, atlas_brain, aligned_fmri,
-                    aligned_mprage, outdir, 'f')
+    mgr().mri2atlas(preproc_fmri, mprage, atlas, aligned_fmri,
+                    aligned_mprage, outdir, 'f', atlas_brain=atlas_brain,
+                    mprage_brain=mprage_brain, mri_brain=mri_brain,
+                    qcdir=regdir + "/" + fmri_name, scanid=fmri_name)
 
     voxel = mgts().voxel_timeseries(aligned_fmri, mask, voxel_ts)
 
     mgqc().stat_summary(aligned_fmri, fmri, motion_fmri, mask, voxel,
-                        aligned_mprage, atlas, outdir=outdir + "/qc/overall",
-                        mri_name=fmri_name)
+                        mprage_brain, atlas_brain,
+                        qcdir=overalldir + "/" + fmri_name, scanid=fmri_name)
 
     for idx, label in enumerate(label_name):
         print "Extracting roi timeseries for " + label + " parcellation..."
-        ts = mgts().roi_timeseries(aligned_fmri, labels[idx], roi_ts[idx])
+        ts = mgts().roi_timeseries(aligned_fmri, labels[idx], roi_ts[idx],
+                                   qcdir=roidir, scanid=fmri_name, refid=label)
+        mgqc().image_align(atlas_brain, labels[idx], qcdir + "/roi/" +
+                           fmri_name, scanid="ref", refid=label)
         graph = mgg(ts.shape[0], labels[idx])
         graph.cor_graph(ts)
         graph.summary()
