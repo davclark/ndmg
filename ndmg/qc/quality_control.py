@@ -272,7 +272,7 @@ class quality_control(object):
             axalign.imshow(mri_data[:, :, i], cmap='gray',
                            interpolation='nearest', vmin=0,
                            vmax=np.max(mri_data))
-            axalign.imshow(refmask[:, :, i], cmap='Greens',
+            axalign.imshow(refmask[:, :, i], cmap='autumn',
                            interpolation='nearest',  alpha=0.3)
             axalign.set_xlabel('Position (res)')
             axalign.set_ylabel('Position (res)')
@@ -374,7 +374,7 @@ class quality_control(object):
             axmean_mni.imshow(mri_datmean[:, :, i], cmap='gray',
                               interpolation='nearest', vmin=0,
                               vmax=np.max(mri_datmean))
-            axmean_mni.imshow(at_dat[:, :, i], cmap='Greens',
+            axmean_mni.imshow(at_dat[:, :, i], cmap='autumn',
                               interpolation='nearest', alpha=0.3, vmin=0,
                               vmax=np.max(at_dat))
             axmean_mni.set_xlabel('Position (res)')
@@ -385,7 +385,7 @@ class quality_control(object):
             axmean_anat.imshow(mri_datmean[:, :, i], cmap='gray',
                                interpolation='nearest', vmin=0,
                                vmax=np.max(mri_datmean))
-            axmean_anat.imshow(mprage_dat[:, :, i], cmap='Greens',
+            axmean_anat.imshow(mprage_dat[:, :, i], cmap='autumn',
                                interpolation='nearest', alpha=0.3, vmin=0,
                                vmax=np.max(mprage_dat))
             axmean_anat.set_xlabel('Position (res)')
@@ -415,7 +415,7 @@ class quality_control(object):
             axanat_mni.set_xlabel('Position (res)')
             axanat_mni.set_ylabel('Position (res)')
             axanat_mni.set_title('%d slice' % i)
-            axanat_mni.imshow(at_dat[:, :, i], cmap='Greens',
+            axanat_mni.imshow(at_dat[:, :, i], cmap='autumn',
                               interpolation='nearest', alpha=0.3, vmin=0,
                               vmax=np.max(at_dat))
 

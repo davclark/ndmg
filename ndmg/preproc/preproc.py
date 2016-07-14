@@ -76,6 +76,8 @@ class preproc(object):
             from qc.quality_control import quality_control as mgqc
             mgqc().check_alignments(mri, motion_mri, s0, qcdir, mri_name,
                                     title="Motion Correction")
+            mgqc().image_align(motion_mri, s0, qcdir, scanid=mri_name,
+                               refid=mri_name + "_s0")
 
         cmd = "cp " + motion_mri + " " + preproc_mri
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)

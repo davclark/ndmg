@@ -95,7 +95,7 @@ class timeseries():
 
         if qcdir is not None:
             from qc.quality_control import quality_control as mgqc
-            mgqc().image_align(fmridata, labeldata, qcdir + "/" + scanid,
+            mgqc().image_align(fmridata, labeldata, qcdir=qcdir,
                                scanid=scanid, refid=refid)
 
         if roits_file:

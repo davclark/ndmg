@@ -69,7 +69,7 @@ class register(object):
         p.communicate()
         pass
 
-    def align_nonlinear(self, inp, ref, affxfm, warp):
+    def align_nonlinear(self, inp, ref, xfm, warp, mask=None):
         """
         Aligns two images using nonlinear methods and stores the
         transform between them.
@@ -80,8 +80,10 @@ class register(object):
             - affxfm: the affine transform to use.
             - warp: the path to store the nonlinear warp.
         """
-        cmd = "fnirt --in=" + inp + " --aff=" + affxfm + " --cout=" +\
-              warp + " --ref=" + ref
+        cmd = "fnirt --in=" + inp + " --aff=" + xfm + " --cout=" +\
+              warp + " --ref=" + ref + " --subsamp=4,2,1,1"
+        if mask is not None:
+            cmd += " --refmask=" + mask
         print "Executing: " + cmd
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
@@ -110,7 +112,7 @@ class register(object):
         p.communicate()
         pass
 
-    def apply_warp(self, inp, out, ref, warp, premat):
+    def apply_warp(self, inp, out, ref, warp, xfm=None, mask=None):
         """
         Applies a warp from the functional to reference space
         in a single step, using information about the structural->ref
@@ -125,7 +127,11 @@ class register(object):
                 structural space.
         """
         cmd = "applywarp --ref=" + ref + " --in=" + inp + " --out=" + out +\
-              " --warp=" + warp + " --premat=" + premat
+              " --warp=" + warp
+        if xfm is not None:
+            cmd += " --premat=" + xfm
+        if mask is not None:
+            cmd += " --mask=" + mask
         print "Executing: " + cmd
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
@@ -266,17 +272,14 @@ class register(object):
 
         if (opt == 'f'):
             atlas_brain = kwargs["atlas_brain"]
-            mprage_brain = kwargs["mprage_brain"]
-            mri_brain = kwargs["mri_brain"]
+            atlas_mask = kwargs["atlas_mask"]
             s0 = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
             s0_brain = outdir + "/tmp/" + mri_name + "_0slice_brain.nii.gz"
-            s0_mask = outdir + "/tmp/" + mri_name + "_0slice_brain_mask.nii.gz"
+            mprage_brain = outdir + "/tmp/" + mri_name + "_anat_brain.nii.gz"
             xfm_func2mpr = outdir + "/tmp/" + mri_name + "_xfm_func2mpr.mat"
             xfm_mpr2temp = outdir + "/tmp/" + mri_name + "_xfm_mpr2temp.mat"
-            xfm_comb = outdir + "/tmp/" + mri_name + "_xfm_comb.mat"
-            mprage_bet = outdir + "/tmp/" + mprage_name + "_bet.nii.gz"
-            # warp_mpr2temp = outdir +"/tmp/"+mri_name +"_warp_mpr2temp.nii.gz"
-            mri_bet = outdir + "/tmp/" + mri_name + "_bet.nii.gz"
+            warp_mpr2temp = outdir + "/tmp/" + mri_name +\
+                "_warp_mpr2temp.nii.gz"
 
             sys.path.insert(0, '..')  # TODO EB: remove this before releasing
 
@@ -284,35 +287,35 @@ class register(object):
             import utils.utils as mgu
             mgu().get_slice(mri, 0, s0)  # get the 0 slice and save
             # TODO EB: do we want to align the resampled image?
-            # self.extract_brain(mprage, mprage_bet)
-
-            # self.align(mri_bet, mprage_bet, xfm_func2mpr, dof=6, bins=False,
-            #           searchrad=False)
-            # self.align(mprage_bet, atlas_brain, xfm_mpr2temp, dof=False,
-            #           searchrad=False, bins=False)
-            # self.align_nonlinear(mprage_bet, atlas_brain, xfm_mpr2temp,
-            #                     warp_mpr2temp)
-            # self.apply_warp(mri_bet, aligned_mri, atlas_brain, warp_mpr2temp,
-            #                xfm_func2mpr)
-            # self.apply_warp(mprage, aligned_mprage, atlas, warp_mpr2temp,
-            #                xfm_mpr2temp)
+            mgu().extract_brain(mprage, mprage_brain)
+            mgu().extract_brain(s0, s0_brain)
+            self.align(s0_brain, mprage_brain, xfm_func2mpr)
+            self.align(mprage_brain, atlas_brain, xfm_mpr2temp)
+            self.align_nonlinear(mprage, atlas, xfm_mpr2temp,
+                                 warp_mpr2temp, mask=atlas_mask)
+            self.apply_warp(mri, aligned_mri, atlas, warp_mpr2temp,
+                            xfm=xfm_func2mpr)
+            self.apply_warp(mprage, aligned_mprage, atlas, warp_mpr2temp,
+                            mask=atlas_mask)
 
             # get a brain mask for the s0 slice and extract the brain
-            mgu().extract_brain(s0, s0_brain, opts="-m")
-            mgu().extract_brain(mprage, mprage_bet)
-            self.align(s0_brain, mprage_bet, xfm_func2mpr)
-            self.align(mprage, atlas, xfm_mpr2temp)
-            self.combine_xfms(xfm_mpr2temp, xfm_func2mpr, xfm_comb)
+            # mgu().extract_brain(s0, s0_brain, opts="-m")
+            # mgu().extract_brain(mprage, mprage_bet)
+            # self.align(s0_brain, mprage_bet, xfm_func2mpr)
+            # self.align(mprage, atlas, xfm_mpr2temp)
+            # self.combine_xfms(xfm_mpr2temp, xfm_func2mpr, xfm_comb)
 
-            self.applyxfm(mri, atlas, xfm_comb, aligned_mri)
-            self.applyxfm(mprage, atlas, xfm_mpr2temp, aligned_mprage)
+            # self.applyxfm(mri, atlas, xfm_comb, aligned_mri)
+            # self.applyxfm(mprage, atlas, xfm_mpr2temp, aligned_mprage)
 
             # mgu().apply_mask(aligned_mri, mri_brain, s0_mask)
-            mgu().extract_brain(aligned_mprage, mprage_brain)
+            # mgu().extract_brain(aligned_mprage, mprage_brain)
             if qcdir is not None:
                 from qc.quality_control import quality_control as mgqc
                 mgqc().check_alignments(mri, aligned_mri, atlas, qcdir,
                                         mri_name, title="Registration")
+                mgqc().image_align(aligned_mri, atlas_brain, qcdir,
+                                   scanid=mri_name, refid=atlas_name)
 
         else:
             gtab = kwargs['gtab']
