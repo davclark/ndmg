@@ -47,10 +47,11 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
     atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
 
     qcdir = outdir + "/qc"
-    mcdir = qcdir + "/mc"
-    regdir = qcdir + "/reg"
-    overalldir = qcdir + "/overall"
-    roidir = qcdir + "/roi"
+    mcdir = qcdir + "/mc/" + fmri_name
+    regdir = qcdir + "/reg/" + fmri_name
+    overalldir = qcdir + "/overall/" + fmri_name
+    roidir = qcdir + "/roi/" + fmri_name
+
     cmd = "mkdir -p " + outdir + "/reg_fmri " + outdir +\
         "/preproc_fmri " + outdir + "/motion_fmri " + outdir +\
         "/voxel_timeseries " + outdir + "/roi_timeseries " +\
@@ -100,28 +101,27 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
 
     # Align fMRI volumes to Atlas
     print "Preprocessing volumes..."
-    mgp().preprocess(fmri, preproc_fmri, motion_fmri, outdir, qcdir=mcdir +
-                     "/" + fmri_name)
+    mgp().preprocess(fmri, preproc_fmri, motion_fmri, outdir, qcdir=mcdir)
 
     print "Aligning volumes..."
     mgr().mri2atlas(preproc_fmri, mprage, atlas, aligned_fmri,
                     aligned_mprage, outdir, 'f', atlas_brain=atlas_brain,
-                    atlas_mask=mask, qcdir=regdir + "/" + fmri_name,
+                    atlas_mask=mask, qcdir=regdir,
                     scanid=fmri_name)
 
     voxel = mgts().voxel_timeseries(aligned_fmri, mask, voxel_ts)
 
     mgqc().stat_summary(aligned_fmri, fmri, motion_fmri, mask, voxel,
                         aligned_mprage, atlas_brain,
-                        qcdir=overalldir + "/" + fmri_name, scanid=fmri_name)
+                        qcdir=overalldir, scanid=fmri_name)
 
     for idx, label in enumerate(label_name):
         print "Extracting roi timeseries for " + label + " parcellation..."
         ts = mgts().roi_timeseries(aligned_fmri, labels[idx], roi_ts[idx],
-                                   qcdir=roidir + "/" + fmri_name,
+                                   qcdir=roidir,
                                    scanid=fmri_name, refid=label)
-        mgqc().image_align(atlas_brain, labels[idx], qcdir + "/" +
-                           fmri_name, scanid=atlas_name, refid=label)
+        mgqc().image_align(atlas_brain, labels[idx], roidir, scanid=atlas_name,
+                           refid=label)
         graph = mgg(ts.shape[0], labels[idx])
         graph.cor_graph(ts)
         graph.summary()

@@ -227,7 +227,8 @@ class quality_control(object):
         fjit.savefig(fnamejit)
         pass
 
-    def image_align(self, mri_data, ref_data, qcdir, scanid="", refid=""):
+    def image_align(self, mri_data, ref_data, qcdir, scanid="", refid="",
+                    binmri=False, binref=False):
         """
         A function to produce an image showing the alignments of two
         reference images.
@@ -252,6 +253,12 @@ class quality_control(object):
         if len(mri_data.shape) == 4:
             mri_data = np.nanmean(mri_data, axis=3)
 
+        if binmri is True:
+            mri_data = (mri_data != 0).astype(float)
+
+        if binref is True:
+            ref_data = (ref_data != 0).astype(float)
+
         falign = plt.figure()
 
         depth = mri_data.shape[2]
@@ -259,9 +266,6 @@ class quality_control(object):
         depth_seq = np.unique(np.round(np.linspace(0, depth - 1, 25)))
         nrows = np.ceil(np.sqrt(depth_seq.shape[0]))
         ncols = np.ceil(depth_seq.shape[0]/nrows)
-
-        # mri_data = np.nanmean(mri_data, axis=3)
-        refmask = (ref_data > 0).astype(int)
 
         # produce figures for each slice in the image
         for d in range(0, depth_seq.shape[0]):
@@ -272,8 +276,9 @@ class quality_control(object):
             axalign.imshow(mri_data[:, :, i], cmap='gray',
                            interpolation='nearest', vmin=0,
                            vmax=np.max(mri_data))
-            axalign.imshow(refmask[:, :, i], cmap='autumn',
-                           interpolation='nearest',  alpha=0.3)
+            axalign.imshow(ref_data[:, :, i], cmap='copper',
+                           interpolation='nearest',  alpha=0.3,
+                           vmin=0, vmax=np.max(ref_data))
             axalign.set_xlabel('Position (res)')
             axalign.set_ylabel('Position (res)')
             axalign.set_title('%d slice' % i)
@@ -374,7 +379,7 @@ class quality_control(object):
             axmean_mni.imshow(mri_datmean[:, :, i], cmap='gray',
                               interpolation='nearest', vmin=0,
                               vmax=np.max(mri_datmean))
-            axmean_mni.imshow(at_dat[:, :, i], cmap='autumn',
+            axmean_mni.imshow(at_dat[:, :, i], cmap='copper',
                               interpolation='nearest', alpha=0.3, vmin=0,
                               vmax=np.max(at_dat))
             axmean_mni.set_xlabel('Position (res)')
@@ -385,7 +390,7 @@ class quality_control(object):
             axmean_anat.imshow(mri_datmean[:, :, i], cmap='gray',
                                interpolation='nearest', vmin=0,
                                vmax=np.max(mri_datmean))
-            axmean_anat.imshow(mprage_dat[:, :, i], cmap='autumn',
+            axmean_anat.imshow(mprage_dat[:, :, i], cmap='copper',
                                interpolation='nearest', alpha=0.3, vmin=0,
                                vmax=np.max(mprage_dat))
             axmean_anat.set_xlabel('Position (res)')
@@ -415,7 +420,7 @@ class quality_control(object):
             axanat_mni.set_xlabel('Position (res)')
             axanat_mni.set_ylabel('Position (res)')
             axanat_mni.set_title('%d slice' % i)
-            axanat_mni.imshow(at_dat[:, :, i], cmap='autumn',
+            axanat_mni.imshow(at_dat[:, :, i], cmap='copper',
                               interpolation='nearest', alpha=0.3, vmin=0,
                               vmax=np.max(at_dat))
 
