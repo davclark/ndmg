@@ -211,8 +211,8 @@ class quality_control(object):
 
         fjit = plt.figure()
         axjit = fjit.add_subplot(111)
-        axjit.scatter(*zip(*v_bef), color='red', alpha=0.5, s=.5)
-        axjit.scatter(*zip(*v_aft), color='blue', alpha=0.5, s=.5)
+        axjit.scatter(*zip(*v_bef), color='red', alpha=0.4, s=.5)
+        axjit.scatter(*zip(*v_aft), color='blue', alpha=0.4, s=.5)
         axjit.set_title("Jitter Plot showing slicewise impact of " + title)
         axjit.set_xlabel('Slice Number')
         axjit.set_ylabel('MSE')
@@ -277,7 +277,7 @@ class quality_control(object):
                            interpolation='nearest', vmin=0,
                            vmax=np.max(mri_data))
             axalign.imshow(ref_data[:, :, i], cmap='copper',
-                           interpolation='nearest',  alpha=0.3,
+                           interpolation='nearest',  alpha=0.4,
                            vmin=0, vmax=np.max(ref_data))
             axalign.set_xlabel('Position (res)')
             axalign.set_ylabel('Position (res)')
@@ -350,6 +350,7 @@ class quality_control(object):
 
         # image for slice SNR = mean / stdev
         mri_datsnr = np.divide(mri_datmean, mri_datstd)
+        mri_datsnr[np.isnan(mri_datsnr)] = 0
         fsnr = plt.figure()
 
         # image for slice-wise mean intensity
@@ -380,7 +381,7 @@ class quality_control(object):
                               interpolation='nearest', vmin=0,
                               vmax=np.max(mri_datmean))
             axmean_mni.imshow(at_dat[:, :, i], cmap='copper',
-                              interpolation='nearest', alpha=0.3, vmin=0,
+                              interpolation='nearest', alpha=0.4, vmin=0,
                               vmax=np.max(at_dat))
             axmean_mni.set_xlabel('Position (res)')
             axmean_mni.set_ylabel('Position (res)')
@@ -391,7 +392,7 @@ class quality_control(object):
                                interpolation='nearest', vmin=0,
                                vmax=np.max(mri_datmean))
             axmean_anat.imshow(mprage_dat[:, :, i], cmap='copper',
-                               interpolation='nearest', alpha=0.3, vmin=0,
+                               interpolation='nearest', alpha=0.4, vmin=0,
                                vmax=np.max(mprage_dat))
             axmean_anat.set_xlabel('Position (res)')
             axmean_anat.set_ylabel('Position (res)')
@@ -421,7 +422,7 @@ class quality_control(object):
             axanat_mni.set_ylabel('Position (res)')
             axanat_mni.set_title('%d slice' % i)
             axanat_mni.imshow(at_dat[:, :, i], cmap='copper',
-                              interpolation='nearest', alpha=0.3, vmin=0,
+                              interpolation='nearest', alpha=0.4, vmin=0,
                               vmax=np.max(at_dat))
 
         for d in range(0, depth):
