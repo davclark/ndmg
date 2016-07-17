@@ -238,8 +238,6 @@ class quality_control(object):
             ref_image: the reference matrix.
             qcdir: the path to a directory to dump the outputs.
         """
-        np.save('test1.npy', mri_data)
-        np.save('test2.npy', ref_data)
         cmd = "mkdir -p " + qcdir
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         p.communicate()
