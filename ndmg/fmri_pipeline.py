@@ -58,8 +58,7 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
         outdir + "/reg_mprage " +\
         outdir + "/graphs " + qcdir + " " +\
         mcdir + " " + regdir + " " + overalldir + " " + roidir
-    p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-    p.communicate()
+    mgu().execute_cmd(cmd)
 
     # Graphs are different because of multiple atlases
     if isinstance(labels, list):
@@ -155,8 +154,7 @@ def main():
     cmd = "mkdir -p " + result.outdir + " " + result.outdir + "/tmp"
     print "Creating output directory: " + result.outdir
     print "Creating output temp directory: " + result.outdir + "/tmp"
-    p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-    p.communicate()
+    mgu().execute_cmd(cmd)
 
     fmri_pipeline(result.fmri, result.mprage, result.atlas, result.atlas_brain,
                   result.mask, result.labels, result.outdir, result.clean,

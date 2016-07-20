@@ -178,6 +178,7 @@ class utils():
         """
         p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
         out, err = p.communicate()
+        print "Executing: " + cmd
         code = p.returncode
         if code:
             sys.exit("Error  " + str(code) + ": " + err)
