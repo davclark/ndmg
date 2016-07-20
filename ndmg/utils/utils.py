@@ -171,6 +171,18 @@ class utils():
         p.communicate()
         pass
 
+    def execute_cmd(self, cmd):
+        """
+        Given a bash command, it is executed and the response piped back to the
+        calling script
+        """
+        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        out, err = p.communicate()
+        code = p.returncode
+        if code:
+            sys.exit("Error  " + str(code) + ": " + err)
+        return p
+
     def get_b0(self, gtab, data):
         """
         Takes bval and bvec files and produces a structure in dipy format

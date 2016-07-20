@@ -27,6 +27,8 @@ import numpy as np
 import nilearn.image as nl
 import sys  # remove this before releasing; only here so we can get new utils
 import dipy.align.reslice as dr
+sys.path.insert('0', '..')
+from utils.utils import utils as mgu
 
 
 class register(object):
@@ -64,9 +66,7 @@ class register(object):
         if searchrad:
             cmd += " -searchrx -180 180 -searchry -180 180 " +\
                    "-searchrz -180 180"
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
         pass
 
     def align_nonlinear(self, inp, ref, xfm, warp, mask=None):
@@ -84,9 +84,7 @@ class register(object):
               warp + " --ref=" + ref + " --subsamp=4,2,1,1"
         if mask is not None:
             cmd += " --refmask=" + mask
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
         pass
 
     def applyxfm(self, inp, ref, xfm, aligned):
@@ -106,10 +104,7 @@ class register(object):
         """
         cmd = "flirt -in " + inp + " -ref " + ref + " -out " + aligned +\
               " -init " + xfm + " -interp trilinear -applyxfm"
-
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
         pass
 
     def apply_warp(self, inp, out, ref, warp, xfm=None, mask=None):
@@ -132,9 +127,7 @@ class register(object):
             cmd += " --premat=" + xfm
         if mask is not None:
             cmd += " --mask=" + mask
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
         pass
 
     def align_slices(self, mri, corrected_mri, idx, opt):
@@ -154,9 +147,7 @@ class register(object):
                     - 'd': for DTI
         """
         cmd = "eddy_correct " + mri + " " + corrected_mri + " " + str(idx)
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
         pass
 
     def resample(self, base, ingested, template):
@@ -221,9 +212,8 @@ class register(object):
         goal_res = int(nb.load(template).get_header().get_zooms()[0])
         cmd = "flirt -in " + base + " -ref " + template + " -out " +\
               res + " -nosearch -applyisoxfm " + str(goal_res)
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
+        pass
 
     def combine_xfms(self, xfm1, xfm2, xfmout):
         """
@@ -236,9 +226,7 @@ class register(object):
             -xfmout: the path to the output transformation
         """
         cmd = "convert_xfm -omat " + xfmout + " -concat " + xfm1 + " " + xfm2
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
 
     def mri2atlas(self, mri, mprage, atlas, aligned_mri,
                   aligned_mprage, outdir, opt, qcdir="", **kwargs):
@@ -281,10 +269,6 @@ class register(object):
             warp_mpr2temp = outdir + "/tmp/" + mri_name +\
                 "_warp_mpr2temp.nii.gz"
 
-            sys.path.insert(0, '..')  # TODO EB: remove this before releasing
-
-            # self.resample_ant(mri, mri_res, atlas)
-            import utils.utils as mgu
             mgu().get_slice(mri, 0, s0)  # get the 0 slice and save
             # TODO EB: do we want to align the resampled image?
             mgu().extract_brain(mprage, mprage_brain)

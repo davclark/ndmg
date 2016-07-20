@@ -17,9 +17,6 @@
 # Created by Eric W Bridgeford on 2016-06-08.
 # Email: ebridge2@jhu.edu
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from numpy import ndarray as nar
 import numpy as np
 from scipy.stats import gaussian_kde
@@ -29,6 +26,12 @@ import sys
 import re
 import random as ran
 import scipy.stats.mstats as scim
+sys.path.insert(0, '..')
+from utils.utils import utils as mgu
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from register.register import register as mgr
 
 
 class quality_control(object):
@@ -148,9 +151,7 @@ class quality_control(object):
         print "\tAfter " + title + ": " + mri_aname
         print "\tReference " + title + ": " + refname
 
-        cmd = "mkdir -p " + qcdir
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu()
 
         # load the nifti images
         mri_before = nb.load(mri_bname)
@@ -159,8 +160,6 @@ class quality_control(object):
 
         if not all(x in mri_after.get_header().get_zooms()[:3] for x in
                    mri_before.get_header().get_zooms()[:3]):
-            sys.path.insert(0, '..')
-            from register.register import register as mgr
             mri_tname = qcdir + "/" + fname + "_res.nii.gz"
             mgr().resample_fsl(mri_bname, mri_tname, refname)
             mri_before = nb.load(mri_tname)
@@ -239,11 +238,8 @@ class quality_control(object):
             qcdir: the path to a directory to dump the outputs.
         """
         cmd = "mkdir -p " + qcdir
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
 
-        sys.path.insert(0, '..')
-        from utils.utils import utils as mgu
         mri_data = mgu().get_brain(mri_data)
         ref_data = mgu().get_brain(ref_data)
 
@@ -326,8 +322,7 @@ class quality_control(object):
             "\tCorrected Image: " + mri + "\n" +\
             " \tMask: " + mask + "\n"
         cmd = "mkdir -p " + qcdir
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
 
         mri_im = nb.load(mri)
         mri_dat = mri_im.get_data()

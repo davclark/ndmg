@@ -24,6 +24,9 @@ import numpy as np
 import nibabel as nb
 import sys
 import os.path as op
+sys.path.insert(0, '..')
+import utils.utils as mgu
+from qc.quality_control import quality_control as mgqc
 
 
 class preproc(object):
@@ -68,12 +71,8 @@ class preproc(object):
         # TODO EB: decide whether it is advantageous to align to mean image
         self.motion_correct(mri, motion_mri, 0)
 
-        sys.path.insert(0, '..')  # TODO EB: remove this before releasing
-
-        import utils.utils as mgu
         if qcdir is not None:
             mgu().get_slice(motion_mri, 0, s0)
-            from qc.quality_control import quality_control as mgqc
             mgqc().check_alignments(mri, motion_mri, s0, qcdir, mri_name,
                                     title="Motion Correction")
             mgqc().image_align(motion_mri, s0, qcdir, scanid=mri_name,

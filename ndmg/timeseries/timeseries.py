@@ -21,6 +21,8 @@
 import numpy as np
 import nibabel as nb
 import sys
+sys.path.insert(0, '..')
+from utils.utils import utils as mgu
 
 
 class timeseries():
@@ -49,8 +51,6 @@ class timeseries():
         print "Extracting Voxel Timeseries..."
 
         # load the mask data
-        sys.path.insert(0, '..')
-        from utils.utils import utils as mgu
         maskdata = mgu().get_brain(mask_file)
         maskbool = (maskdata > 0)  # extract timeseries for any labelled voxels
 
