@@ -26,12 +26,11 @@ import sys
 import re
 import random as ran
 import scipy.stats.mstats as scim
-sys.path.insert(0, '..')
-from utils.utils import utils as mgu
+import os.path
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from register.register import register as mgr
+from ndmg.utils import utility as mgu
 
 
 class quality_control(object):
@@ -161,6 +160,7 @@ class quality_control(object):
         if not all(x in mri_after.get_header().get_zooms()[:3] for x in
                    mri_before.get_header().get_zooms()[:3]):
             mri_tname = qcdir + "/" + fname + "_res.nii.gz"
+            from ndmg.register import registration as mgr
             mgr().resample_fsl(mri_bname, mri_tname, refname)
             mri_before = nb.load(mri_tname)
 

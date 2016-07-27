@@ -28,7 +28,7 @@ import nibabel as nb
 from subprocess import Popen, PIPE
 
 
-class utils():
+class utility():
     def __init__(self):
         """
         Utility functions for m2g
@@ -150,9 +150,7 @@ class utils():
             mask: the path to a brain mask.
         """
         cmd = "fslmaths " + inp + " -mas " + mask + " " + masked
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        self.execute_cmd(cmd)
         pass
 
     def extract_brain(self, inp, out, opts=""):
@@ -166,9 +164,7 @@ class utils():
         cmd = "bet " + inp + " " + out
         if opts is not None:
             cmd = cmd + " " + str(opts)
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        self.execute_cmd(cmd)
         pass
 
     def execute_cmd(self, cmd):

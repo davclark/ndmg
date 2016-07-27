@@ -19,17 +19,16 @@
 # Created by Eric Bridgeford on 2016-06-20-16.
 # Email: ebridge2@jhu.edu
 
-from subprocess import Popen, PIPE
 import numpy as np
 import nibabel as nb
 import sys
 import os.path as op
-sys.path.insert(0, '..')
-import utils.utils as mgu
-from qc.quality_control import quality_control as mgqc
+import os.path
+from ndmg.utils import utility as mgu
+from ndmg.qc import quality_control as mgqc
 
 
-class preproc(object):
+class preprocess(object):
 
     def __init__(self):
         """
@@ -48,9 +47,7 @@ class preproc(object):
         """
         cmd = "mcflirt -in " + mri + " -out " + corrected_mri +\
             " -plots -refvol " + str(idx)
-        print "Executing: " + cmd
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
 
     def preprocess(self, mri, preproc_mri, motion_mri, outdir, qcdir="",
                    scanid=""):
@@ -79,6 +76,5 @@ class preproc(object):
                                refid=mri_name + "_s0")
 
         cmd = "cp " + motion_mri + " " + preproc_mri
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
-        p.communicate()
+        mgu().execute_cmd(cmd)
         pass

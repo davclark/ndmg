@@ -28,7 +28,7 @@ import ndmg
 import time
 
 
-class graph(object):
+class graphing(object):
     def __init__(self, N, rois, attr=None):
         """
         Initializes the graph with nodes corresponding to the number of ROIs
@@ -99,8 +99,8 @@ class graph(object):
 
         for (idx_out, roi_out) in enumerate(roilist):
             for (idx_in, roi_in) in enumerate(roilist):
-                self.edge_dict[tuple((roi_out, roi_in))] = float(
-                        cor[idx_out, idx_in])
+                self.edge_dict[tuple((roi_out, roi_in))] = float(np.absolute(
+                        cor[idx_out, idx_in]))
 
         edge_list = [(k[0], k[1], v) for k, v in self.edge_dict.items()]
 

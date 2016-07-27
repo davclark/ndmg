@@ -19,19 +19,17 @@
 # Created by Greg Kiar on 2016-01-28.
 # Email: gkiar@jhu.edu, ebridge2@jhu.edu
 
-from subprocess import Popen, PIPE
 import os.path as op
-import ndmg.utils as ndu
+import ndmg.utils.utility as mgu
 import nibabel as nb
 import numpy as np
 import nilearn.image as nl
-import sys  # remove this before releasing; only here so we can get new utils
+import sys
 import dipy.align.reslice as dr
-sys.path.insert('0', '..')
-from utils.utils import utils as mgu
+from ndmg.qc import quality_control as mgqc
 
 
-class register(object):
+class registration(object):
 
     def __init__(self):
         """
@@ -40,6 +38,7 @@ class register(object):
         apply transforms, as well as a built-in method for aligning low
         resolution mri images to a high resolution atlas.
         """
+        import ndmg.utils.utility as mgu
         pass
 
     def align(self, inp, ref, xfm=None, out=None, dof=12, searchrad=True,
@@ -269,6 +268,7 @@ class register(object):
             warp_mpr2temp = outdir + "/tmp/" + mri_name +\
                 "_warp_mpr2temp.nii.gz"
 
+            sys.path.insert(0, '..')
             mgu().get_slice(mri, 0, s0)  # get the 0 slice and save
             # TODO EB: do we want to align the resampled image?
             mgu().extract_brain(mprage, mprage_brain)
@@ -294,8 +294,7 @@ class register(object):
 
             # mgu().apply_mask(aligned_mri, mri_brain, s0_mask)
             # mgu().extract_brain(aligned_mprage, mprage_brain)
-            if qcdir is not None:
-                from qc.quality_control import quality_control as mgqc
+            if qcdir is not None:                
                 mgqc().check_alignments(mri, aligned_mri, atlas, qcdir,
                                         mri_name, title="Registration")
                 mgqc().image_align(aligned_mri, atlas_brain, qcdir,
@@ -318,7 +317,6 @@ class register(object):
             self.align_slices(mri, mri2, np.where(gtab.b0s_mask)[0])
 
             # Loads DTI image in as data and extracts B0 volume
-            import ndmg.utils as mgu
             mri_im = nb.load(mri2)
             b0_im = mgu().get_b0(gtab, mri_im.get_data())
             # GK TODO: why doesn't top import work?

@@ -21,9 +21,8 @@
 import numpy as np
 import nibabel as nb
 import sys
-sys.path.insert(0, '..')
-from utils.utils import utils as mgu
-
+from ndmg.utils import utility as mgu
+from ndmg.qc import quality_control as mgqc
 
 class timeseries():
 
@@ -74,8 +73,6 @@ class timeseries():
                     for the voxels in the fmri image
             - roits_file: the path to where the roi timeseries will be saved
         """
-        sys.path.insert(0, '..')
-        from utils.utils import utils as mgu
         labeldata = mgu().get_brain(label_file)
 
         rois = np.sort(np.unique(labeldata[labeldata > 0]))
@@ -94,7 +91,6 @@ class timeseries():
             roi_ts[roi_idx, :] = np.mean(roi_voxelwisets, axis=0)
 
         if qcdir is not None:
-            from qc.quality_control import quality_control as mgqc
             mgqc().image_align(fmridata, labeldata, qcdir=qcdir,
                                scanid=scanid, refid=refid)
 

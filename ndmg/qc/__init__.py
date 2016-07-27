@@ -1,3 +1,3 @@
 from __future__ import absolute_import
 # Prevent typing multilevel imports
-from . import *
+from .quality_control import quality_control
