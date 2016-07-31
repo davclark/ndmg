@@ -25,7 +25,6 @@ from subprocess import Popen, PIPE
 import os.path as op
 from ndmg.utils import utility as mgu
 from ndmg.register import registration as mgr
-from ndmg.track import track as mgt
 from ndmg.graph import graphing as mgg
 import numpy as np
 import nibabel as nb
@@ -125,6 +124,9 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
         graph.cor_graph(ts)
         graph.summary()
         graph.save_graph(graphs[idx], fmt=fmt)
+
+    cmd = "rm -r " + outdir + "/tmp/" + fmri_name + "*"
+    mgu().execute_cmd(cmd)
 
     print "Complete! FNGS first run"
     pass

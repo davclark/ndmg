@@ -24,6 +24,7 @@ import nibabel as nb
 import sys
 import os.path as op
 import os.path
+import nilearn as nl
 from ndmg.utils import utility as mgu
 from ndmg.qc import quality_control as mgqc
 
@@ -48,6 +49,20 @@ class preprocess(object):
         cmd = "mcflirt -in " + mri + " -out " + corrected_mri +\
             " -plots -refvol " + str(idx)
         mgu().execute_cmd(cmd)
+
+    def detrend(self, mri, corrected_mri):
+        """
+        Performs detrending of a timeseries.
+
+        **Positional Arguments:**
+            mri: the 4d (fMRI) image volume as any brain data.
+            corrected_mri: the 4d (fMRI) output path.
+        """
+        print "Detrending fMRI image..."
+        mri_dat = mgu().get_brain(mri)
+        dt_mri_dat = nl.signal.clean(mri, standardize=False)
+        dt_mri = nb.Nifti1Image(dt_mri_dat, mri.get_affine())
+        nb.save(dt_mri, corrected_mri)
 
     def preprocess(self, mri, preproc_mri, motion_mri, outdir, qcdir="",
                    scanid=""):
