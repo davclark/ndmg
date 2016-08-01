@@ -29,7 +29,7 @@ from subprocess import Popen, PIPE
 import sys
 
 
-class utility():
+class utils(object):
     def __init__(self):
         """
         Utility functions for m2g
