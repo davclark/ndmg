@@ -31,7 +31,7 @@ class timeseries():
         Timeseries extraction class
         """
         pass
-
+    
     def voxel_timeseries(self, fmri_file, mask_file, voxel_file=""):
         """
         Function to extract timeseries for the voxels in the provided

@@ -26,6 +26,7 @@ from dipy.core.gradients import gradient_table
 import numpy as np
 import nibabel as nb
 from subprocess import Popen, PIPE
+import sys
 
 
 class utility():

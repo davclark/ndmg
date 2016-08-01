@@ -31,6 +31,7 @@ import nibabel as nb
 from ndmg.ts import timeseries as mgts
 from ndmg.qc import quality_control as mgqc
 from ndmg.preproc import preprocess as mgp
+from ndmg.nuis import nuisance as mgn
 
 
 def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
@@ -54,8 +55,8 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
     cmd = "mkdir -p " + outdir + "/reg_fmri " + outdir +\
         "/preproc_fmri " + outdir + "/motion_fmri " + outdir +\
         "/voxel_timeseries " + outdir + "/roi_timeseries " +\
-        outdir + "/reg_mprage " +\
-        outdir + "/graphs " + qcdir + " " +\
+        outdir + "/reg_mprage " + outdir + "/tmp " +\
+        outdir + "/graphs " + outdir + "/nuis_fmri " + qcdir + " " +\
         mcdir + " " + regdir + " " + overalldir + " " + roidir
     mgu().execute_cmd(cmd)
 
@@ -81,7 +82,9 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
     aligned_mprage = outdir + "/reg_mprage/" + fmri_name +\
         "_anat_aligned.nii.gz"
     motion_fmri = outdir + "/motion_fmri/" + fmri_name + "_mc.nii.gz"
+    nuis_fmri = outdir + "/nuis_fmri/" + fmri_name + "_nuis.nii.gz"
     voxel_ts = outdir + "/voxel_timeseries/" + fmri_name + "_voxel.npz"
+
 
     print "This pipeline will produce the following derivatives..."
     print "fMRI volumes preprocessed: " + preproc_fmri
@@ -106,16 +109,17 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
                     aligned_mprage, outdir, 'f', atlas_brain=atlas_brain,
                     atlas_mask=mask, qcdir=regdir,
                     scanid=fmri_name)
+    mgn().calc_residuals(aligned_fmri, nuis_fmri)
 
-    voxel = mgts().voxel_timeseries(aligned_fmri, mask, voxel_ts)
+    voxel = mgts().voxel_timeseries(nuis_fmri, mask, voxel_ts)
 
-    mgqc().stat_summary(aligned_fmri, fmri, motion_fmri, mask, voxel,
+    mgqc().stat_summary(nuis_fmri, fmri, motion_fmri, mask, voxel,
                         aligned_mprage, atlas_brain,
                         qcdir=overalldir, scanid=fmri_name)
 
     for idx, label in enumerate(label_name):
         print "Extracting roi timeseries for " + label + " parcellation..."
-        ts = mgts().roi_timeseries(aligned_fmri, labels[idx], roi_ts[idx],
+        ts = mgts().roi_timeseries(nuis_fmri, labels[idx], roi_ts[idx],
                                    qcdir=roidir,
                                    scanid=fmri_name, refid=label)
         mgqc().image_align(atlas_brain, labels[idx], roidir, scanid=atlas_name,
