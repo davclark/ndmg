@@ -23,15 +23,15 @@ from argparse import ArgumentParser
 from datetime import datetime
 from subprocess import Popen, PIPE
 import os.path as op
-from ndmg.utils import utility as mgu
-from ndmg.register import registration as mgr
-from ndmg.graph import graphing as mgg
+from ndmg.utils import utils as mgu
+from ndmg.register import register as mgr
+from ndmg.graph import graph as mgg
 import numpy as np
 import nibabel as nb
-from ndmg.ts import timeseries as mgts
-from ndmg.qc import quality_control as mgqc
-from ndmg.preproc import preprocess as mgp
-from ndmg.nuis import nuisance as mgn
+from ndmg.timeseries import timeseries as mgts
+from ndmg.qc import qc as mgqc
+from ndmg.preproc import preproc as mgp
+from ndmg.nuis import nuis as mgn
 
 
 def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,

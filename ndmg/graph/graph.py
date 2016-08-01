@@ -28,7 +28,7 @@ import ndmg
 import time
 
 
-class graphing(object):
+class graph(object):
     def __init__(self, N, rois, attr=None):
         """
         Initializes the graph with nodes corresponding to the number of ROIs

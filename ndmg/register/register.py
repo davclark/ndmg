@@ -20,16 +20,16 @@
 # Email: gkiar@jhu.edu, ebridge2@jhu.edu
 
 import os.path as op
-import ndmg.utils.utility as mgu
+from ndmg.utils import utils as mgu
 import nibabel as nb
 import numpy as np
 import nilearn.image as nl
 import sys
 import dipy.align.reslice as dr
-from ndmg.qc import quality_control as mgqc
+from ndmg.qc import qc as mgqc
 
 
-class registration(object):
+class register(object):
 
     def __init__(self):
         """
