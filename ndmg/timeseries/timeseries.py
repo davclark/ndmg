@@ -21,8 +21,8 @@
 import numpy as np
 import nibabel as nb
 import sys
-from ndmg.utils import utility as mgu
-from ndmg.qc import quality_control as mgqc
+from ndmg.utils import utils as mgu
+from ndmg.qc import qc as mgqc
 
 class timeseries(object):
 
