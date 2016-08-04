@@ -38,7 +38,6 @@ class register(object):
         apply transforms, as well as a built-in method for aligning low
         resolution mri images to a high resolution atlas.
         """
-        import ndmg.utils.utility as mgu
         pass
 
     def align(self, inp, ref, xfm=None, out=None, dof=12, searchrad=True,

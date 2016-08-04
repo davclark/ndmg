@@ -160,7 +160,7 @@ class qc(object):
         if not all(x in mri_after.get_header().get_zooms()[:3] for x in
                    mri_before.get_header().get_zooms()[:3]):
             mri_tname = qcdir + "/" + fname + "_res.nii.gz"
-            from ndmg.register import registration as mgr
+            from ndmg.register import register as mgr
             mgr().resample_fsl(mri_bname, mri_tname, refname)
             mri_before = nb.load(mri_tname)
 
