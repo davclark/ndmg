@@ -105,9 +105,8 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
     mgp().preprocess(fmri, preproc_fmri, motion_fmri, outdir, qcdir=mcdir)
 
     print "Aligning volumes..."
-    mgr().mri2atlas(preproc_fmri, mprage, atlas, aligned_fmri,
-                    aligned_mprage, outdir, 'f', atlas_brain=atlas_brain,
-                    atlas_mask=mask, qcdir=regdir,
+    mgr().fmri2atlas(preproc_fmri, mprage, atlas, atlas_brain, mask,
+                    aligned_fmri, aligned_mprage, outdir, qcdir=regdir,
                     scanid=fmri_name)
     mgn().calc_residuals(aligned_fmri, nuis_fmri)
 
