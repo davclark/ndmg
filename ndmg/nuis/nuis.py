@@ -19,7 +19,7 @@
 # Created by Eric Bridgeford on 2016-06-20-16.
 # Email: ebridge2@jhu.edu
 from ndmg.utils import utils as mgu
-from CPAC.nuisance import calc_compcor_components
+# from CPAC.nuisance import calc_compcor_components
 import nibabel as nb
 import numpy as np
 
