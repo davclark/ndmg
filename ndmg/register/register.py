@@ -162,8 +162,8 @@ class register(object):
                 template:
                     - Image that is the target of the alignment
         """
-        print "Executing resample for " + base + "to resolution of " +\
-              template + "..."
+        print("Executing resample for " + base + "to resolution of " +\
+              template + "...")
         # Loads images
         template_im = nb.load(template)
         base_im = nb.load(base)
@@ -177,7 +177,7 @@ class register(object):
         pass
 
     def resample_ant(self, base, res, template):
-       """
+        """
         A function to resample a base image to that of a template image
         using dipy.
         NOTE: Dipy is far superior for antisotropic -> isotropic
@@ -188,7 +188,7 @@ class register(object):
             - res: the filename after resampling.
             - template: the template image to align to.
         """
-        print "Resampling " + base + " to " + template + "..."
+        print("Resampling " + str(base) + " to " + str(template) + "...")
         baseimg = nb.load(base)
         tempimg = nb.load(template)
         data2, affine2 = dr.reslice(baseimg.get_data(),
