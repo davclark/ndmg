@@ -1,0 +1,185 @@
+#!/usr/bin/env python
+
+# Copyright 2016 NeuroData (http://neurodata.io)
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# ndmg_bids.py
+# Created by Greg Kiar on 2016-07-25.
+# Email: gkiar@jhu.edu
+
+from argparse import ArgumentParser
+from subprocess import Popen, PIPE
+from os.path import expanduser
+from ndmg.scripts.ndmg_setup import get_files
+from ndmg.utils import bids_s3
+from ndmg.scripts.ndmg_pipeline import ndmg_pipeline
+from glob import glob
+import ndmg.utils as mgu
+import os.path as op
+import os
+import sys
+
+
+atlas_dir = op.join(expanduser("~"), 'atlases')
+atlas = op.join(atlas_dir, 'atlas/MNI152_T1_1mm.nii.gz')
+atlas_mask = op.join(atlas_dir, 'atlas/MNI152_T1_1mm_brain_mask.nii.gz')
+labels = ['labels/AAL.nii.gz',
+          'labels/desikan.nii.gz',
+          'labels/HarvardOxford.nii.gz',
+          'labels/CPAC200.nii.gz',
+          'labels/Talairach.nii.gz',
+          'labels/JHU.nii.gz',
+          'labels/slab907.nii.gz',
+          'labels/slab1068.nii.gz',
+          'labels/DS00071.nii.gz',
+          'labels/DS00096.nii.gz',
+          'labels/DS00108.nii.gz',
+          'labels/DS00140.nii.gz',
+          'labels/DS00195.nii.gz',
+          'labels/DS00278.nii.gz',
+          'labels/DS00350.nii.gz',
+          'labels/DS00446.nii.gz',
+          'labels/DS00583.nii.gz',
+          'labels/DS00833.nii.gz',
+          'labels/DS01216.nii.gz',
+          'labels/DS01876.nii.gz',
+          'labels/DS03231.nii.gz',
+          'labels/DS06481.nii.gz',
+          'labels/DS16784.nii.gz',
+          'labels/DS72784.nii.gz']
+labels = [op.join(atlas_dir, l) for l in labels]
+
+# Data structure:
+# sub-<subject id>/
+#   ses-<session id>/
+#     anat/
+#       sub-<subject id>_ses-<session id>_T1w.nii.gz
+#     dwi/
+#       sub-<subject id>_ses-<session id>_dwi.nii.gz
+#   *   sub-<subject id>_ses-<session id>_dwi.bval
+#   *   sub-<subject id>_ses-<session id>_dwi.bvec
+#
+# *these files can be anywhere up stream of the dwi data, and are inherited.
+
+
+def driver(inDir, outDir, subjs):
+    """
+    Crawls the given BIDS organized directory for data pertaining to the given
+    subject and session, and passes necessary files to ndmg_pipeline for
+    processing.
+    """
+    # Get atlases
+    ope = op.exists
+    if any(not ope(l) for l in labels) or not (ope(atlas) and ope(atlas_mask)):
+        print("Cannot find atlas information; downloading...")
+        mgu().execute_cmd('mkdir -p ' + atlas_dir) 
+        cmd = " ".join(['wget -rnH --cut-dirs=3 --no-parent -P ' + atlas_dir,
+                        'http://openconnecto.me/mrdata/share/atlases/'])
+        mgu().execute_cmd(cmd)
+
+    # Make output dir
+    mgu().execute_cmd("mkdir -p " + outDir + " " + outDir + "/tmp")
+
+    # Get subjects
+    if subjs is None:
+        subj_dirs = glob(op.join(inDir, "sub-*"))
+        subjs = [subj_dir.split("-")[-1] for subj_dir in subj_dirs]
+
+    bvec = []; bval = []; anat = []; dwi = [];
+    # Get all image data for each subject
+    for subj in subjs:
+        anat_t = glob(op.join(inDir, "sub-%s" % subj, "anat", "*_T1w.nii*")) +\
+                 glob(op.join(inDir, "sub-%s" % subj, "ses-*",
+                            "anat", "*_T1w.nii*"))
+        dwi_t = glob(op.join(inDir, "sub-%s" % subj, "dwi", "*_dwi.nii*")) +\
+                glob(op.join(inDir, "sub-%s" % subj, "ses-*",
+                           "dwi", "*_dwi.nii*"))
+        anat = anat + anat_t
+        dwi = dwi +  dwi_t
+
+    bvec_t = []; bval_t = []
+    # Look for bval, bvec files for each DWI file
+    for scan in dwi:
+        step = op.dirname(scan)
+        while not bval_t or not bvec_t:
+            bval_t = glob(op.join(step, "*dwi.bval"))
+            bvec_t = glob(op.join(step, "*dwi.bvec"))
+            if step is op.abspath(op.join(inDir, os.pardir)):
+                sys.exit("Error: No b-values or b-vectors found..\
+                    \nPlease review BIDS spec (bids.neuroimaging.io).")
+            step = op.abspath(op.join(step, os.pardir))
+        bvec.append(bvec_t[0])
+        bval.append(bval_t[0])
+        bvec_t = []; bval_t = []
+
+    assert(len(anat) == len(dwi))
+    assert(len(bvec) == len(dwi))
+    assert(len(bval) == len(dwi))
+
+    # Run for each 
+    for i, scans in enumerate(anat):     
+        print("T1 file: " + anat[i])
+        print("DWI file: " + dwi[i])
+        print("Bval file: " + bval[i])
+        print("Bvec file: " + bvec[i])
+        
+        ndmg_pipeline(dwi[i], bval[i], bvec[i], anat[i], atlas, atlas_mask,
+                      labels, outDir, clean=True)
+
+
+def main():
+    parser = ArgumentParser(description="This is an end-to-end connectome \
+                            estimation pipeline from sMRI and DTI images")
+
+    parser.add_argument('bids_dir', help='The directory with the input dataset'
+                        ' formatted according to the BIDS standard.')
+    parser.add_argument('output_dir', help='The directory where the output '
+                        'files should be stored. If you are running group '
+                        'level analysis this folder should be prepopulated '
+                        'with the results of the participant level analysis.')
+    parser.add_argument('analysis_level', help='Level of the analysis that '
+                        'will be performed. Multiple participant level '
+                        'analyses can be run independently (in parallel) '
+                        'using the same output_dir.', choices=['participant'])
+    parser.add_argument('--participant_label', help='The label(s) of the '
+                        'participant(s) that should be analyzed. The label '
+                        'corresponds to sub-<participant_label> from the BIDS '
+                        'spec (so it does not include "sub-"). If this '
+                        'parameter is not provided all subjects should be '
+                        'analyzed. Multiple participants can be specified '
+                        'with a space separated list.', nargs="+")
+    parser.add_argument('--bucket', action='store', help='The name of '
+                        'an S3 bucket which holds BIDS organized data. You '
+                        'must have built your bucket with credentials to the '
+                        'S3 bucket you wish to access.')
+    parser.add_argument('--remote_path', action='store', help='The path to '
+                        'the data on your S3 bucket. The data will be '
+                        'downloaded to the provided bids_dir on your machine.')
+    result = parser.parse_args()
+
+    inDir = result.bids_dir
+    outDir = result.output_dir
+    subj = result.participant_label
+    bucket = result.bucket
+    remote = result.remote_path
+
+    if bucket is not None and remote is not None:
+        print("Retrieving data from S3...")
+        bids_s3.get_data(bucket, remote, inDir)
+
+    driver(inDir, outDir, subj)
+
+if __name__ == "__main__":
+    main()

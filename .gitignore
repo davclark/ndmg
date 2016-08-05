@@ -9,3 +9,5 @@
 *.o
 *.egg*
 build/
+credentials.csv
+my_credentials.csv

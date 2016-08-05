@@ -11,4 +11,4 @@ from .utils.utils import utils as utils
 
 from .scripts import fmri_pipeline as fmri_pipeline
 
-version = "0.0.13"
+version = "0.0.20"

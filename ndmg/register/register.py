@@ -82,7 +82,7 @@ class register(object):
               warp + " --ref=" + ref + " --subsamp=4,2,1,1"
         if mask is not None:
             cmd += " --refmask=" + mask
-        mgu().execute_cmd(cmd)
+        status = mgu().execute_cmd(cmd)
         pass
 
     def applyxfm(self, inp, ref, xfm, aligned):
@@ -100,9 +100,10 @@ class register(object):
                 aligned:
                     - Aligned output image as a nifti image file
         """
-        cmd = "flirt -in " + inp + " -ref " + ref + " -out " + aligned +\
-              " -init " + xfm + " -interp trilinear -applyxfm"
-        mgu().execute_cmd(cmd)
+        cmd = "".join(["flirt -in " + inp + " -ref " + ref + " -out " +\
+                       aligned + " -init " + xfm +\
+                       " -interp trilinear -applyxfm"])
+        status = mgu().execute_cmd(cmd)
         pass
 
     def apply_warp(self, inp, out, ref, warp, xfm=None, mask=None):
@@ -145,7 +146,7 @@ class register(object):
                     - 'd': for DTI
         """
         cmd = "eddy_correct " + mri + " " + corrected_mri + " " + str(idx)
-        mgu().execute_cmd(cmd)
+        status = mgu().execute_cmd(cmd)
         pass
 
     def resample(self, base, ingested, template):
@@ -176,7 +177,7 @@ class register(object):
         pass
 
     def resample_ant(self, base, res, template):
-        """
+       """
         A function to resample a base image to that of a template image
         using dipy.
         NOTE: Dipy is far superior for antisotropic -> isotropic
@@ -187,7 +188,7 @@ class register(object):
             - res: the filename after resampling.
             - template: the template image to align to.
         """
-        print "Resampling..."
+        print "Resampling " + base + " to " + template + "..."
         baseimg = nb.load(base)
         tempimg = nb.load(template)
         data2, affine2 = dr.reslice(baseimg.get_data(),
@@ -195,7 +196,6 @@ class register(object):
                                     baseimg.get_header().get_zooms()[:3],
                                     tempimg.get_header().get_zooms()[:3])
         img2 = nb.Nifti1Image(data2, affine2)
-        print "Saving resampled image..."
         nb.save(img2, res)
         pass
 
@@ -226,30 +226,28 @@ class register(object):
         cmd = "convert_xfm -omat " + xfmout + " -concat " + xfm1 + " " + xfm2
         mgu().execute_cmd(cmd)
 
-    def fmri2atlas(self, mri, mprage, atlas, atlas_brain, atlas_mask,
-                  aligned_mri, aligned_mprage, outdir, qcdir=""):
+    def fmri2atlas(self, mri, anat, atlas, atlas_brain, atlas_mask,
+                  aligned_mri, aligned_anat, outdir, qcdir=""):
         """
         Aligns two images and stores the transform between them
 
         **Positional Arguments:**
             mri: the preprocessed mri image.
-            mprage: the raw anatomical scan.
+            anat: the raw anatomical scan.
             atlas: the template atlas.
-            aligned_mprage: the name of the aligned anatomical scan to
+            aligned_anat: the name of the aligned anatomical scan to
                 produce
             outdir: the output base directory.
             opt: the 
 
        """
-        # Creates names for all intermediate files used
-        # GK TODO: come up with smarter way to create these temp file names
-        mri_name = op.splitext(op.splitext(op.basename(mri))[0])[0]
-        mprage_name = op.splitext(op.splitext(op.basename(mprage))[0])[0]
-        atlas_name = op.splitext(op.splitext(op.basename(atlas))[0])[0]
+        mri_name = mgu().get_filename(mri)
+        anat_name = mgu().get_filename(anat)
+        atlas_name = mgu().get_filename(atlas)
 
         s0 = outdir + "/tmp/" + mri_name + "_0slice.nii.gz"
         s0_brain = outdir + "/tmp/" + mri_name + "_0slice_brain.nii.gz"
-        mprage_brain = outdir + "/tmp/" + mri_name + "_anat_brain.nii.gz"
+        anat_brain = outdir + "/tmp/" + mri_name + "_anat_brain.nii.gz"
         xfm_func2mpr = outdir + "/tmp/" + mri_name + "_xfm_func2mpr.mat"
         xfm_mpr2temp = outdir + "/tmp/" + mri_name + "_xfm_mpr2temp.mat"
         warp_mpr2temp = outdir + "/tmp/" + mri_name +\
@@ -258,26 +256,26 @@ class register(object):
         sys.path.insert(0, '..')
         mgu().get_slice(mri, 0, s0)  # get the 0 slice and save
         # TODO EB: do we want to align the resampled image?
-        mgu().extract_brain(mprage, mprage_brain)
+        mgu().extract_brain(anat, anat_brain)
         mgu().extract_brain(s0, s0_brain)
-        self.align(s0_brain, mprage_brain, xfm_func2mpr)
-        self.align(mprage_brain, atlas_brain, xfm_mpr2temp)
-        self.align_nonlinear(mprage, atlas, xfm_mpr2temp,
+        self.align(s0_brain, anat_brain, xfm_func2mpr)
+        self.align(anat_brain, atlas_brain, xfm_mpr2temp)
+        self.align_nonlinear(anat, atlas, xfm_mpr2temp,
                              warp_mpr2temp, mask=atlas_mask)
         self.apply_warp(mri, aligned_mri, atlas, warp_mpr2temp,
                         xfm=xfm_func2mpr)
-        self.apply_warp(mprage, aligned_mprage, atlas, warp_mpr2temp,
+        self.apply_warp(anat, aligned_anat, atlas, warp_mpr2temp,
                         mask=atlas_mask)
 
         # get a brain mask for the s0 slice and extract the brain
         # mgu().extract_brain(s0, s0_brain, opts="-m")
-        # mgu().extract_brain(mprage, mprage_bet)
-        # self.align(s0_brain, mprage_bet, xfm_func2mpr)
-        # self.align(mprage, atlas, xfm_mpr2temp)
+        # mgu().extract_brain(anat, anat_bet)
+        # self.align(s0_brain, anat_bet, xfm_func2mpr)
+        # self.align(anat, atlas, xfm_mpr2temp)
         # self.combine_xfms(xfm_mpr2temp, xfm_func2mpr, xfm_comb)
 
         # self.applyxfm(mri, atlas, xfm_comb, aligned_mri)
-        # self.applyxfm(mprage, atlas, xfm_mpr2temp, aligned_mprage)
+        # self.applyxfm(anat, atlas, xfm_mpr2temp, aligned_anat)
 
         # mgu().apply_mask(aligned_mri, mri_brain, s0_mask)
         # mgu().extract_brain(aligned_mprage, mprage_brain)
@@ -287,3 +285,55 @@ class register(object):
             mgqc().image_align(aligned_mri, atlas_brain, qcdir,
                                scanid=mri_name, refid=atlas_name)
 
+    def dti2atlas(self, dti, gtab, mprage, atlas,
+                  aligned_dti, outdir, clean=False):
+        dti_name = mgu().get_filename(dti)
+        mprage_name = mgu().get_filename(mprage)
+        atlas_name = mgu().get_filename(atlas)
+
+        dti2 = mgu().name_tmps(outdir, dti_name, "_t2.nii.gz")
+        temp_aligned = mgu().name_tmps(outdir, dti_name, "_ta.nii.gz")
+        temp_aligned2 = mgu().name_tmps(outdir, dti_name, "_ta2.nii.gz")
+        b0 = mgu().name_tmps(outdir, dti_name, "_b0.nii.gz")
+        mprage2 = mgu().name_tmps(outdir, mprage_name, "_ss.nii.gz")
+        xfm = mgu().name_tmps(outdir, mprage_name,
+                              "_" + atlas_name + "_xfm.mat")
+
+        # Align DTI volumes to each other
+        self.align_slices(dti, dti2, np.where(gtab.b0s_mask)[0])
+
+        # Loads DTI image in as data and extracts B0 volume
+        dti_im = nb.load(dti2)
+        b0_im = mgu().get_b0(gtab, dti_im.get_data())
+
+        # Wraps B0 volume in new nifti image
+        b0_head = dti_im.get_header()
+        b0_head.set_data_shape(b0_head.get_data_shape()[0:3])
+        b0_out = nb.Nifti1Image(b0_im, affine=dti_im.get_affine(),
+                                header=b0_head)
+        b0_out.update_header()
+        nb.save(b0_out, b0)
+
+        # Applies skull stripping to MPRAGE volume
+        cmd = 'bet ' + mprage + ' ' + mprage2 + ' -B'
+        print("Executing: " + cmd)
+        mgu().execute_cmd(cmd)
+
+        # Algins B0 volume to MPRAGE, and MPRAGE to Atlas
+        cmd = "".join(['epi_reg --epi=', dti2, ' --t1=', mprage,
+                       ' --t1brain=', mprage2, ' --out=', temp_aligned])
+        print("Executing: " + cmd)
+        mgu().execute_cmd(cmd)
+
+        self.align(mprage, atlas, xfm)
+
+        # Applies combined transform to dti image volume
+        self.applyxfm(temp_aligned, atlas, xfm, temp_aligned2)
+        self.resample(temp_aligned2, aligned_dti, atlas)
+
+        if clean:
+            cmd = "".join(["rm -f ", dti2, " ", temp_aligned,
+                           " ", b0, " ", xfm, " ", outdir, "/tmp/",
+                           mprage_name, "*"])
+            print("Cleaning temporary registration files...")
+            mgu().execute_cmd(cmd)
