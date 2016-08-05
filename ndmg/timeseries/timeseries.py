@@ -24,6 +24,7 @@ import sys
 from ndmg.utils import utils as mgu
 from ndmg.qc import qc as mgqc
 
+
 class timeseries(object):
 
     def __init__(self):
@@ -31,7 +32,7 @@ class timeseries(object):
         Timeseries extraction class
         """
         pass
-    
+
     def voxel_timeseries(self, fmri_file, mask_file, voxel_file=""):
         """
         Function to extract timeseries for the voxels in the provided
@@ -47,7 +48,7 @@ class timeseries(object):
             - voxel_file: the path to the voxel timeseries to be created.
                           Must be string.
         """
-        print "Extracting Voxel Timeseries..."
+        print "Extracting Voxel Timeseries for " + str(fmri_file) + "..."
 
         # load the mask data
         maskdata = mgu().get_brain(mask_file)

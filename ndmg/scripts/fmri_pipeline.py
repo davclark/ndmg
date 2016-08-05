@@ -85,7 +85,6 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
     nuis_fmri = outdir + "/nuis_fmri/" + fmri_name + "_nuis.nii.gz"
     voxel_ts = outdir + "/voxel_timeseries/" + fmri_name + "_voxel.npz"
 
-
     print "This pipeline will produce the following derivatives..."
     print "fMRI volumes preprocessed: " + preproc_fmri
     print "fMRI volumes motion corrected: " + motion_fmri
@@ -106,8 +105,8 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
 
     print "Aligning volumes..."
     mgr().fmri2atlas(preproc_fmri, mprage, atlas, atlas_brain, mask,
-                    aligned_fmri, aligned_mprage, outdir, qcdir=regdir,
-                    scanid=fmri_name)
+                     aligned_fmri, aligned_mprage, outdir, qcdir=regdir,
+                     scanid=fmri_name)
     mgn().calc_residuals(aligned_fmri, nuis_fmri)
 
     voxel = mgts().voxel_timeseries(nuis_fmri, mask, voxel_ts)

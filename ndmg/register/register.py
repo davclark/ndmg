@@ -100,8 +100,8 @@ class register(object):
                 aligned:
                     - Aligned output image as a nifti image file
         """
-        cmd = "".join(["flirt -in " + inp + " -ref " + ref + " -out " +\
-                       aligned + " -init " + xfm +\
+        cmd = "".join(["flirt -in " + inp + " -ref " + ref + " -out " +
+                       aligned + " -init " + xfm +
                        " -interp trilinear -applyxfm"])
         status = mgu().execute_cmd(cmd)
         pass
@@ -162,7 +162,7 @@ class register(object):
                 template:
                     - Image that is the target of the alignment
         """
-        print("Executing resample for " + base + "to resolution of " +\
+        print("Executing resample for " + base + "to resolution of " +
               template + "...")
         # Loads images
         template_im = nb.load(template)
@@ -227,19 +227,22 @@ class register(object):
         mgu().execute_cmd(cmd)
 
     def fmri2atlas(self, mri, anat, atlas, atlas_brain, atlas_mask,
-                  aligned_mri, aligned_anat, outdir, qcdir=""):
+                   aligned_mri, aligned_anat, outdir, qcdir=""):
         """
         Aligns two images and stores the transform between them
 
         **Positional Arguments:**
-            mri: the preprocessed mri image.
-            anat: the raw anatomical scan.
+            mri: the path of the preprocessed mri image.
+            anat: the path of the raw anatomical scan.
             atlas: the template atlas.
+            atlas_brain: the template brain.
+            atlas_mask: the template mask.
+            aligned_mri: the name of the aligned mri scan to produce.
             aligned_anat: the name of the aligned anatomical scan to
                 produce
             outdir: the output base directory.
-            opt: the 
-
+            qcdir: the quality control directory. If None, then
+                no QC will be performed.
        """
         mri_name = mgu().get_filename(mri)
         anat_name = mgu().get_filename(anat)
@@ -279,7 +282,7 @@ class register(object):
 
         # mgu().apply_mask(aligned_mri, mri_brain, s0_mask)
         # mgu().extract_brain(aligned_mprage, mprage_brain)
-        if qcdir is not None:                
+        if qcdir is not None:
             mgqc().check_alignments(mri, aligned_mri, atlas, qcdir,
                                     mri_name, title="Registration")
             mgqc().image_align(aligned_mri, atlas_brain, qcdir,

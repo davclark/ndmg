@@ -66,7 +66,7 @@ class preproc(object):
         mri_mean = np.mean(mri_dat, axis=3)
         nvol = dt_mri_dat.shape[3]
         for t in range(0, nvol):
-            dt_mri_dat[:,:,:,t] = dt_mri_dat[:,:,:,t] + mri_mean
+            dt_mri_dat[:, :, :, t] = dt_mri_dat[:, :, :, t] + mri_mean
         dt_mri = nb.Nifti1Image(dt_mri_dat, mri_im.get_affine())
         nb.save(dt_mri, detrended_mri)
         pass
@@ -108,6 +108,6 @@ class preproc(object):
             mgqc().image_align(motion_mri, s0, qcdir, scanid=mri_name,
                                refid=mri_name + "_s0")
 
-        #self.detrend(mri, preproc_mri)
-        #self.smooth(mri, preproc_mri)
+        # self.detrend(mri, preproc_mri)
+        # self.smooth(mri, preproc_mri)
         pass
