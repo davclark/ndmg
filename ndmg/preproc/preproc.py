@@ -108,6 +108,8 @@ class preproc(object):
             mgqc().image_align(motion_mri, s0, qcdir, scanid=mri_name,
                                refid=mri_name + "_s0")
 
+        cmd = "cp " + motion_mri + " " + preproc_mri
+        mgu().execute_cmd(cmd)
         # self.detrend(mri, preproc_mri)
         # self.smooth(mri, preproc_mri)
         pass

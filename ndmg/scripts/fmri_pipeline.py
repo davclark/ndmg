@@ -105,8 +105,7 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
 
     print "Aligning volumes..."
     mgr().fmri2atlas(preproc_fmri, mprage, atlas, atlas_brain, mask,
-                     aligned_fmri, aligned_mprage, outdir, qcdir=regdir,
-                     scanid=fmri_name)
+                     aligned_fmri, aligned_mprage, outdir, qcdir=regdir)
     mgn().calc_residuals(aligned_fmri, nuis_fmri)
 
     voxel = mgts().voxel_timeseries(nuis_fmri, mask, voxel_ts)
@@ -117,11 +116,14 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
 
     for idx, label in enumerate(label_name):
         print "Extracting roi timeseries for " + label + " parcellation..."
-        ts = mgts().roi_timeseries(nuis_fmri, labels[idx], roi_ts[idx],
+        try:
+            ts = mgts().roi_timeseries(nuis_fmri, labels[idx], roi_ts[idx],
                                    qcdir=roidir,
                                    scanid=fmri_name, refid=label)
-        mgqc().image_align(atlas_brain, labels[idx], roidir, scanid=atlas_name,
-                           refid=label)
+            mgqc().image_align(atlas_brain, labels[idx], roidir, scanid=atlas_name,
+                               refid=label)
+        except OSError as err:
+            print(err)
         graph = mgg(ts.shape[0], labels[idx])
         graph.cor_graph(ts)
         graph.summary()

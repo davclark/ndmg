@@ -9,6 +9,7 @@ from .nuis.nuis import nuis as nuis
 from .qc.qc import qc as qc
 from .utils.utils import utils as utils
 
+from .scripts import ndmg_pipeline as ndmg_pipeline
 from .scripts import fmri_pipeline as fmri_pipeline
 
 version = "0.0.20"
