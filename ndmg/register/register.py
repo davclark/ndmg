@@ -178,7 +178,6 @@ class register(object):
         nb.save(target_im, ingested)
         pass
 
-<<<<<<< HEAD
     def resample_ant(self, base, res, template):
         """
         A function to resample a base image to that of a template image
