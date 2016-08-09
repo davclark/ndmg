@@ -38,6 +38,7 @@ class register(object):
         apply transforms, as well as a built-in method for aligning low
         resolution mri images to a high resolution atlas.
         """
+        import ndmg.utils as mgu
         pass
 
     def align(self, inp, ref, xfm=None, out=None, dof=12, searchrad=True,
@@ -126,6 +127,7 @@ class register(object):
             cmd += " --premat=" + xfm
         if mask is not None:
             cmd += " --mask=" + mask
+
         mgu().execute_cmd(cmd)
         pass
 
@@ -176,6 +178,7 @@ class register(object):
         nb.save(target_im, ingested)
         pass
 
+<<<<<<< HEAD
     def resample_ant(self, base, res, template):
         """
         A function to resample a base image to that of a template image
@@ -228,8 +231,11 @@ class register(object):
 
     def fmri2atlas(self, mri, anat, atlas, atlas_brain, atlas_mask,
                    aligned_mri, aligned_anat, outdir, qcdir=""):
+
         """
-        Aligns two images and stores the transform between them
+        A function to change coordinates from the subject's
+        brain space to that of a template using nonlinear
+        registration.
 
         **Positional Arguments:**
             mri: the path of the preprocessed mri image.
@@ -290,6 +296,25 @@ class register(object):
 
     def dti2atlas(self, dti, gtab, mprage, atlas,
                   aligned_dti, outdir, clean=False):
+        """
+        Aligns two images and stores the transform between them.
+
+        **Positoinal Arguments:**
+
+                dti:
+                    - Input impage to be aligned as a nifti image file
+                bvals:
+                    - File containing list of bvalues for each scan
+                bvecs:
+                    - File containing gradient directions for each scan
+                mprage:
+                    - Intermediate image being aligned to as a nifti image file
+                atlas:
+                    - Terminal image being aligned to as a nifti image file
+                aligned_dti:
+                    - Aligned output dti image as a nifti image file
+        """
+        # Creates names for all intermediate files used
         dti_name = mgu().get_filename(dti)
         mprage_name = mgu().get_filename(mprage)
         atlas_name = mgu().get_filename(atlas)
@@ -319,13 +344,11 @@ class register(object):
 
         # Applies skull stripping to MPRAGE volume
         cmd = 'bet ' + mprage + ' ' + mprage2 + ' -B'
-        print("Executing: " + cmd)
         mgu().execute_cmd(cmd)
 
         # Algins B0 volume to MPRAGE, and MPRAGE to Atlas
         cmd = "".join(['epi_reg --epi=', dti2, ' --t1=', mprage,
                        ' --t1brain=', mprage2, ' --out=', temp_aligned])
-        print("Executing: " + cmd)
         mgu().execute_cmd(cmd)
 
         self.align(mprage, atlas, xfm)
