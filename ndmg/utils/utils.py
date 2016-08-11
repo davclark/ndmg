@@ -213,7 +213,7 @@ class utils(object):
         out, err = p.communicate()
         code = p.returncode
         if code:
-            sys.exit("Error  " + str(code) + ": " + err)
+            raise ValueError(err)
         return out, err
 
     def name_tmps(self, basedir, basename, extension):
