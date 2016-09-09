@@ -131,12 +131,12 @@ class utils(object):
         if type(brain_file) is np.ndarray:  # if brain passed as matrix
             braindata = brain_file
         else:
-            if type(brain_file) is str:  # object is a path
-                brain = nb.load(brain_file)
+            if type(brain_file) is str or type(brain_file) is unicode:  # object is a path
+                brain = nb.load(str(brain_file))
             elif type(brain_file) is nb.nifti1.Nifti1Image:
                 brain = brain_file
             else:
-                raise TypeError("Mask file is of type " + type(brain_file) +
+                raise TypeError("Mask file is of type " + str(type(brain_file)) +
                                 "; accepted types are numpy.ndarray, " +
                                 "string, and nibabel.nifti1.Nifti1Image.")
             braindata = brain.get_data()

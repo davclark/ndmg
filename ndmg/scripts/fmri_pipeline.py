@@ -32,6 +32,7 @@ from ndmg.timeseries import timeseries as mgts
 from ndmg.qc import qc as mgqc
 from ndmg.preproc import preproc as mgp
 from ndmg.nuis import nuis as mgn
+from guppy import hpy
 
 
 def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
@@ -102,14 +103,14 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
     # Align fMRI volumes to Atlas
     print "Preprocessing volumes..."
     mgp().preprocess(fmri, preproc_fmri, motion_fmri, outdir, qcdir=mcdir)
-
     print "Aligning volumes..."
     mgr().fmri2atlas(preproc_fmri, mprage, atlas, atlas_brain, mask,
                      aligned_fmri, aligned_mprage, outdir, qcdir=regdir)
-    mgn().calc_residuals(aligned_fmri, nuis_fmri)
-
+    #mgn().calc_residuals(aligned_fmri, nuis_fmri)
+    mgu().execute_cmd("fslmaths  " + aligned_fmri + " -bptf 100 -1 " + nuis_fmri)
+ 
     voxel = mgts().voxel_timeseries(nuis_fmri, mask, voxel_ts)
-
+    
     mgqc().stat_summary(nuis_fmri, fmri, motion_fmri, mask, voxel,
                         aligned_mprage, atlas_brain,
                         qcdir=overalldir, scanid=fmri_name)
@@ -129,8 +130,8 @@ def fmri_pipeline(fmri, mprage, atlas, atlas_brain, mask, labels, outdir,
         graph.summary()
         graph.save_graph(graphs[idx], fmt=fmt)
 
-    cmd = "rm -r " + outdir + "/tmp/" + fmri_name + "*"
-    mgu().execute_cmd(cmd)
+    #cmd = "rm -r " + outdir + "/tmp/" + fmri_name + "*"
+    #mgu().execute_cmd(cmd)
 
     print "Complete! FNGS first run"
     pass

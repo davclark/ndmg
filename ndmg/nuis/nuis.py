@@ -59,7 +59,9 @@ class nuis(object):
         linear = np.arange(0, nvol)
         quad = np.arange(0, nvol)**2
         # ncomp = calc_compcor_components(mri_dat, 5, )
-        X = np.hstack((X, linear.reshape(linear.shape[0], -1)))
+        for rval in [linear, quad]:
+            X = np.hstack((X, rval.reshape(rval.shape[0], -1)))
+        
         X = X[:, 1:]
 
         Y = mri_dat[region_mask].T

@@ -107,6 +107,7 @@ class preproc(object):
                                     title="Motion Correction")
             mgqc().image_align(motion_mri, s0, qcdir, scanid=mri_name,
                                refid=mri_name + "_s0")
+            print("Test")
 
         cmd = "cp " + motion_mri + " " + preproc_mri
         mgu().execute_cmd(cmd)

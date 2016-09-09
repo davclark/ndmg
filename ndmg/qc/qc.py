@@ -150,8 +150,6 @@ class qc(object):
         print "\tAfter " + title + ": " + mri_aname
         print "\tReference " + title + ": " + refname
 
-        mgu()
-
         # load the nifti images
         mri_before = nb.load(mri_bname)
         mri_after = nb.load(mri_aname)
@@ -176,7 +174,6 @@ class qc(object):
         v_aft = []
 
         refdata = np.divide(refdata, np.mean(refdata) + 1)
-
         for t in range(0, nvols):
             mribefdat = np.divide(mri_bdata[:, :, :, t],
                                   np.mean(mri_bdata[:, :, :, t]) + 1)
@@ -239,7 +236,6 @@ class qc(object):
         """
         cmd = "mkdir -p " + qcdir
         mgu().execute_cmd(cmd)
-
         mri_data = mgu().get_brain(mri_data)
         ref_data = mgu().get_brain(ref_data)
 
@@ -260,7 +256,6 @@ class qc(object):
         depth_seq = np.unique(np.round(np.linspace(0, depth - 1, 25)))
         nrows = np.ceil(np.sqrt(depth_seq.shape[0]))
         ncols = np.ceil(depth_seq.shape[0]/nrows)
-
         # produce figures for each slice in the image
         for d in range(0, depth_seq.shape[0]):
             # TODO EB: create nifti image with these values
@@ -276,7 +271,6 @@ class qc(object):
             axalign.set_xlabel('Position (res)')
             axalign.set_ylabel('Position (res)')
             axalign.set_title('%d slice' % i)
-
         falign.set_size_inches(nrows*6, ncols*6)
         falign.savefig(qcdir + "/" + scanid + "_" + refid + "_overlap.png")
 

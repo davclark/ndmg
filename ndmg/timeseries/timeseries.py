@@ -61,7 +61,7 @@ class timeseries(object):
             np.savez(voxel_file, voxel_ts)
         return voxel_ts
 
-    def roi_timeseries(self, fmri_file, label_file, roits_file="", qcdir="",
+    def roi_timeseries(self, fmri_file, label_file, roits_file="", qcdir=None,
                        scanid="", refid=""):
         """
         Function to extract average timeseries for the voxels in each
@@ -89,6 +89,7 @@ class timeseries(object):
             roibool = (labeldata == roi)  # get a bool where our voxels in roi
             roi_voxelwisets = fmridata[roibool, :]
 
+            print(roi_voxelwisets.shape)
             roi_ts[roi_idx, :] = np.mean(roi_voxelwisets, axis=0)
 
         if qcdir is not None:
