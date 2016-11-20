@@ -146,9 +146,9 @@ class nuis(object):
         fmri_name = mgu().get_filename(mri)
 
         highpass_im = mgu().name_tmps(outdir, fmri_name, "_highpass.nii.gz")
-        self.highpass_filter(mri, nuisance_mri)
+        self.highpass_filter(mri, highpass_im)
 
-        uncorrected = nb.load(mri)
+        uncorrected = nb.load(highpass_im)
         fmri_data = uncorrected.get_data()
 
         if mask is None:

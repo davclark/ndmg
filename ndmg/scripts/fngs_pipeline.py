@@ -36,7 +36,7 @@ from ndmg.stats import qc as mggqc
 
 
 
-def fngs_pipeline(fmri, struct, atlas, atlas_brain, mask, labels, outdir,
+def fngs_pipeline(fmri, struct, atlas, atlas_brain, atlas_mask, labels, outdir,
                   clean=False, stc=None, fmt='gpickle'):
     """
     Analyzes fMRI images and produces subject-specific derivatives.
@@ -50,7 +50,7 @@ def fngs_pipeline(fmri, struct, atlas, atlas_brain, mask, labels, outdir,
             - the path to a reference atlas.
         atlas_brain:
             - the path to a reference atlas, brain extracted.
-        mask:
+        atlas_mask:
             - the path to a reference brain mask.
         labels:
             - a list of labels files.
@@ -134,13 +134,13 @@ def fngs_pipeline(fmri, struct, atlas, atlas_brain, mask, labels, outdir,
     mgp().preprocess(fmri, preproc_fmri, motion_fmri, outdir,
     qcdir=mcdir, stc=stc)
     print "Aligning volumes..."
-    mgr().fmri2atlas(preproc_fmri, struct, atlas, atlas_brain, mask,
+    mgr().fmri2atlas(preproc_fmri, struct, atlas, atlas_brain, atlas_mask,
                      aligned_fmri, aligned_struct, outdir, qcdir=regdir)
-    mgn().nuis_correct(aligned_fmri, nuis_fmri)
+    mgn().nuis_correct(aligned_fmri, nuis_fmri, outdir, mask=atlas_mask)
 
-    voxel = mgts().voxel_timeseries(nuis_fmri, mask, voxel_ts)
+    voxel = mgts().voxel_timeseries(nuis_fmri, atlas_mask, voxel_ts)
     
-    mgqc().stat_summary(aligned_fmri, fmri, motion_fmri, mask, voxel,
+    mgqc().stat_summary(aligned_fmri, fmri, motion_fmri, atlas_mask, voxel,
                         aligned_struct, atlas_brain,
                         qcdir=overalldir, scanid=fmri_name, qc_html=qc_html)
 
@@ -174,7 +174,7 @@ def main():
     parser.add_argument("atlas", action="store", help="Nifti T1 MRI atlas")
     parser.add_argument("atlas_brain", action="store", help="Nifti T1 MRI \
                         brain only atlas")
-    parser.add_argument("mask", action="store", help="Nifti binary mask of \
+    parser.add_argument("atlas_mask", action="store", help="Nifti binary mask of \
                         brain space in the atlas")
     parser.add_argument("outdir", action="store", help="Path to which \
                         derivatives will be stored")
@@ -197,7 +197,7 @@ def main():
     mgu().execute_cmd(cmd)
 
     fngs_pipeline(result.fmri, result.struct, result.atlas, result.atlas_brain,
-                  result.mask, result.labels, result.outdir,
+                  result.atlas_mask, result.labels, result.outdir,
                   result.clean, result.stc, result.fmt)
 
 
